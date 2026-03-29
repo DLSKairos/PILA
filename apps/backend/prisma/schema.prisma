@@ -1,0 +1,926 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  TRAINER
+  CLIENT
+}
+
+enum SubscriptionPlan {
+  STARTER
+  PRO
+  ELITE
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum ClientGoal {
+  LOSE_WEIGHT
+  GAIN_MUSCLE
+  DEFINE
+  ENDURANCE
+  MAINTENANCE
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  ACTIVE
+}
+
+enum MealType {
+  BREAKFAST
+  MORNING_SNACK
+  LUNCH
+  AFTERNOON_SNACK
+  DINNER
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum MessageSender {
+  TRAINER
+  CLIENT
+}
+
+enum AIInteractionType {
+  NUTRITION_PLAN
+  WORKOUT_PLAN
+  MEAL_SUBSTITUTION
+  GYM_MOTIVATION
+  CHECKIN_MESSAGE
+  TRAINER_SUGGESTION
+  WEEKLY_REPORT
+  ONBOARDING
+  PLAN_ADJUSTMENT
+}
+
+enum NotificationType {
+  MEAL_REMINDER
+  WATER_REMINDER
+  GYM_PROXIMITY
+  STREAK_AT_RISK
+  WEEKLY_CHECKIN
+  TRAINER_MESSAGE
+  PLAN_UPDATED
+}
+
+enum FeedbackType {
+  EXERCISE_TOO_HARD
+  EXERCISE_TOO_EASY
+  FOOD_DISLIKED
+  FOOD_UNAVAILABLE
+  SCHEDULE_CONFLICT
+  INJURY_CONCERN
+  GENERAL
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 1 – AUTH Y USUARIOS
+// ─────────────────────────────────────────────────────────────
+
+model Trainer {
+  id                String   @id @default(uuid())
+  name              String
+  email             String   @unique
+  passwordHash      String
+  phone             String?
+  photoUrl          String?
+  bio               String?
+  specialties       String[]
+  preferredLanguage String   @default("es")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscription          TrainerSubscription?
+  settings              TrainerSettings?
+  clients               Client[]
+  messages              Message[]
+  challenges            TrainerChallenge[]
+  weeklyReports         WeeklyReport[]
+  aiInteractions        AIInteraction[]
+  aiRateLimits          AIRateLimit[]
+  featureFlagOverrides  FeatureFlagOverride[]
+  auditLogs             AuditLog[]
+
+  @@map("trainers")
+}
+
+model TrainerSubscription {
+  id                 String             @id @default(uuid())
+  plan               SubscriptionPlan   @default(STARTER)
+  status             SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  stripeCustomerId   String?
+  stripePriceId      String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String  @unique
+
+  @@map("trainer_subscriptions")
+}
+
+model TrainerSettings {
+  id                   String  @id @default(uuid())
+  defaultWaterGoal     Int     @default(8)
+  enableLeaderboard    Boolean @default(false)
+  enableWeeklyReports  Boolean @default(true)
+  enableAISuggestions  Boolean @default(true)
+  welcomeMessage       String?
+  brandColor           String?
+  logoUrl              String?
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String  @unique
+
+  @@map("trainer_settings")
+}
+
+model Client {
+  id                  String   @id @default(uuid())
+  name                String
+  email               String   @unique
+  passwordHash        String
+  phone               String?
+  photoUrl            String?
+  preferredLanguage   String   @default("es")
+  timezone            String   @default("America/Bogota")
+  isActive            Boolean  @default(true)
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+  trainerId String
+
+  profile               ClientProfile?
+  motivationProfile     MotivationProfile?
+  onboardingMessages    OnboardingMessage[]
+  gyms                  ClientGym[]
+  devices               ClientDevice[]
+  nutritionPlans        NutritionPlan[]
+  workoutPlans          WorkoutPlan[]
+  dailyLogs             DailyLog[]
+  weightCheckins        WeightCheckin[]
+  progressPhotos        ProgressPhoto[]
+  profileSnapshots      ClientProfileSnapshot[]
+  weeklyAdherence       WeeklyAdherence[]
+  streakHistory         StreakHistory[]
+  messages              Message[]
+  feedback                ClientFeedback[]
+  aiInteractions          AIInteraction[]
+  challengeParticipants   ChallengeParticipant[]
+  scheduledNotifications  ScheduledNotification[]
+
+  @@map("clients")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  userRole  UserRole
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, userRole])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 2 – PERFIL DEL CLIENTE
+// ─────────────────────────────────────────────────────────────
+
+model ClientProfile {
+  id              String        @id @default(uuid())
+  birthDate       DateTime
+  sex             String
+  currentWeight   Float
+  height          Float
+  targetWeight    Float
+  bmi             Float?
+  goal            ClientGoal
+  targetWeeks     Int
+  activityLevel   ActivityLevel
+  daysPerWeek     Int
+  sessionDuration Int
+  hasGymAccess    Boolean       @default(true)
+  mealsPerDay     Int           @default(5)
+  dietaryStyle    String?
+  tdee            Float?
+  targetCalories  Float?
+  targetProtein   Float?
+  targetCarbs     Float?
+  targetFat       Float?
+
+  breakfastTime      String?
+  morningSnackTime   String?
+  lunchTime          String?
+  afternoonSnackTime String?
+  dinnerTime         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String @unique
+
+  restrictions ClientRestriction[]
+  injuries     ClientInjury[]
+
+  @@map("client_profiles")
+}
+
+model ClientRestriction {
+  id          String @id @default(uuid())
+  type        String
+  description String
+
+  profile   ClientProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String
+
+  @@map("client_restrictions")
+}
+
+model ClientInjury {
+  id          String  @id @default(uuid())
+  description String
+  limitation  String?
+  isActive    Boolean @default(true)
+
+  profile   ClientProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String
+
+  @@map("client_injuries")
+}
+
+model ClientProfileSnapshot {
+  id             String   @id @default(uuid())
+  weight         Float
+  targetCalories Float
+  targetProtein  Float
+  targetCarbs    Float
+  targetFat      Float
+  takenAt        DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([clientId, takenAt])
+  @@map("client_profile_snapshots")
+}
+
+model MotivationProfile {
+  id                  String   @id @default(uuid())
+  onboardingResponses Json
+  motivationType      String?
+  mainObstacle        String?
+  previousAttempts    String?
+  trainerNotes        String?
+  aiSummary           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String @unique
+
+  @@map("motivation_profiles")
+}
+
+model OnboardingMessage {
+  id        String   @id @default(uuid())
+  role      String
+  content   String
+  order     Int
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([clientId, order])
+  @@map("onboarding_messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 3 – GEOLOCALIZACIÓN
+// ─────────────────────────────────────────────────────────────
+
+model ClientGym {
+  id           String   @id @default(uuid())
+  name         String
+  address      String?
+  latitude     Float
+  longitude    Float
+  radiusMeters Int      @default(200)
+  isPrimary    Boolean  @default(false)
+  isVerified   Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  dailyLogs DailyLog[]
+
+  @@map("client_gyms")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 4 – DISPOSITIVOS Y NOTIFICACIONES
+// ─────────────────────────────────────────────────────────────
+
+model ClientDevice {
+  id           String   @id @default(uuid())
+  deviceType   String
+  platform     String
+  userAgent    String?
+  lastActiveAt DateTime @default(now())
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  client           Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId         String
+  pushSubscription PushSubscription?
+
+  @@map("client_devices")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  device   ClientDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String       @unique
+
+  @@map("push_subscriptions")
+}
+
+model ScheduledNotification {
+  id           String           @id @default(uuid())
+  type         NotificationType
+  scheduledFor DateTime
+  sentAt       DateTime?
+  failed       Boolean          @default(false)
+  failReason   String?
+  payload      Json
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([scheduledFor, sentAt])
+  @@index([clientId, type])
+  @@map("scheduled_notifications")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 5 – CLOUDINARY ASSETS
+// ─────────────────────────────────────────────────────────────
+
+model CloudinaryAsset {
+  id           String   @id @default(uuid())
+  publicId     String   @unique
+  secureUrl    String
+  format       String
+  width        Int?
+  height       Int?
+  bytes        Int
+  resourceType String
+  folder       String
+  uploadedAt   DateTime @default(now())
+
+  exercise      Exercise?      @relation("exerciseAsset")
+  progressFront ProgressPhoto? @relation("frontPhoto")
+  progressSide  ProgressPhoto? @relation("sidePhoto")
+
+  @@map("cloudinary_assets")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 6 – PLANES
+// ─────────────────────────────────────────────────────────────
+
+model NutritionPlan {
+  id                      String    @id @default(uuid())
+  version                 Int       @default(1)
+  isActive                Boolean   @default(true)
+  startDate               DateTime? @db.Date
+  endDate                 DateTime? @db.Date
+  approvedAt              DateTime?
+  generatedByAI           Boolean   @default(false)
+  notes                   String?
+  lastGeneratedAt         DateTime?
+  cacheValid              Boolean   @default(false)
+  profileHashAtGeneration String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  meals    MealItem[]
+  mealLogs MealLog[]
+
+  @@index([clientId, isActive])
+  @@map("nutrition_plans")
+}
+
+model MealItem {
+  id       String   @id @default(uuid())
+  mealType MealType
+  order    Int
+  foodName String
+  quantity Float
+  unit     String
+  calories Float
+  protein  Float
+  carbs    Float
+  fat      Float
+  recipe   String?
+  createdAt DateTime @default(now())
+
+  plan   NutritionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId String
+
+  mealLogs      MealLog[]
+  substitutions MealSubstitution[]
+
+  @@index([planId, mealType])
+  @@map("meal_items")
+}
+
+model WorkoutPlan {
+  id                      String    @id @default(uuid())
+  version                 Int       @default(1)
+  isActive                Boolean   @default(true)
+  startDate               DateTime? @db.Date
+  endDate                 DateTime? @db.Date
+  approvedAt              DateTime?
+  generatedByAI           Boolean   @default(false)
+  notes                   String?
+  lastGeneratedAt         DateTime?
+  cacheValid              Boolean   @default(false)
+  profileHashAtGeneration String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  days WorkoutDay[]
+
+  @@index([clientId, isActive])
+  @@map("workout_plans")
+}
+
+model WorkoutDay {
+  id        String    @id @default(uuid())
+  dayOfWeek DayOfWeek
+  isRestDay Boolean   @default(false)
+  notes     String?
+
+  plan   WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId String
+
+  exercises    Exercise[]
+  exerciseLogs ExerciseLog[]
+
+  @@map("workout_days")
+}
+
+model Exercise {
+  id                  String          @id @default(uuid())
+  order               Int
+  name                String
+  muscleGroup         String
+  sets                Int
+  reps                String
+  restSeconds         Int?
+  weightSuggestion    Float?
+  weeklyProgressionKg Float?
+  deloadWeek          Int?
+  notes               String?
+  assetId             String?         @unique
+  asset               CloudinaryAsset? @relation("exerciseAsset", fields: [assetId], references: [id])
+
+  day   WorkoutDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  dayId String
+
+  exerciseLogs ExerciseLog[]
+
+  @@index([dayId, order])
+  @@map("exercises")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 7 – SEGUIMIENTO DIARIO
+// ─────────────────────────────────────────────────────────────
+
+model DailyLog {
+  id              String    @id @default(uuid())
+  date            DateTime  @db.Date
+  gymCheckinAt    DateTime?
+  gymCheckoutAt   DateTime?
+  sessionDuration Int?
+  streakCount     Int       @default(0)
+  streakActive    Boolean   @default(false)
+  nutritionDone   Boolean   @default(false)
+  workoutDone     Boolean   @default(false)
+  isRestDay       Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  gym   ClientGym? @relation(fields: [gymId], references: [id])
+  gymId String?
+
+  mealLogs     MealLog[]
+  exerciseLogs ExerciseLog[]
+  waterLogs    WaterLog[]
+
+  @@unique([clientId, date])
+  @@index([date])
+  @@map("daily_logs")
+}
+
+model MealLog {
+  id          String    @id @default(uuid())
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  dailyLogId String
+
+  mealItem   MealItem @relation(fields: [mealItemId], references: [id])
+  mealItemId String
+
+  plan   NutritionPlan @relation(fields: [planId], references: [id])
+  planId String
+
+  substitution MealSubstitution?
+
+  @@index([dailyLogId])
+  @@index([mealItemId])
+  @@map("meal_logs")
+}
+
+model MealSubstitution {
+  id                 String   @id @default(uuid())
+  originalFoodName   String
+  substituteFoodName String
+  substituteQuantity Float
+  substituteUnit     String
+  substituteCalories Float
+  substituteProtein  Float
+  substituteCarbs    Float
+  substituteFat      Float
+  reason             String?
+  aiGenerated        Boolean  @default(true)
+  createdAt          DateTime @default(now())
+
+  mealLog            MealLog  @relation(fields: [mealLogId], references: [id], onDelete: Cascade)
+  mealLogId          String   @unique
+
+  originalMealItem   MealItem @relation(fields: [originalMealItemId], references: [id])
+  originalMealItemId String
+
+  @@map("meal_substitutions")
+}
+
+model ExerciseLog {
+  id            String    @id @default(uuid())
+  setsCompleted Int       @default(0)
+  repsCompleted String?
+  weightUsed    Float?
+  completed     Boolean   @default(false)
+  completedAt   DateTime?
+  notes         String?
+
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  dailyLogId String
+
+  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  exerciseId String
+
+  workoutDay   WorkoutDay @relation(fields: [workoutDayId], references: [id])
+  workoutDayId String
+
+  @@index([dailyLogId])
+  @@index([exerciseId])
+  @@map("exercise_logs")
+}
+
+model WaterLog {
+  id       String   @id @default(uuid())
+  loggedAt DateTime @default(now())
+
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  dailyLogId String
+
+  @@index([dailyLogId])
+  @@map("water_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 8 – PROGRESO
+// ─────────────────────────────────────────────────────────────
+
+model WeightCheckin {
+  id        String   @id @default(uuid())
+  weight    Float
+  date      DateTime @db.Date
+  notes     String?
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  progressPhoto ProgressPhoto?
+
+  @@index([clientId, date])
+  @@map("weight_checkins")
+}
+
+model ProgressPhoto {
+  id         String   @id @default(uuid())
+  weekNumber Int
+  aiMessage  String?
+  createdAt  DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  checkin   WeightCheckin @relation(fields: [checkinId], references: [id])
+  checkinId String        @unique
+
+  frontAssetId String?          @unique
+  sideAssetId  String?          @unique
+  frontAsset   CloudinaryAsset? @relation("frontPhoto", fields: [frontAssetId], references: [id])
+  sideAsset    CloudinaryAsset? @relation("sidePhoto", fields: [sideAssetId], references: [id])
+
+  @@index([clientId, weekNumber])
+  @@map("progress_photos")
+}
+
+model StreakHistory {
+  id        String   @id @default(uuid())
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  days      Int
+  brokenBy  String?
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([clientId, days])
+  @@map("streak_history")
+}
+
+model WeeklyAdherence {
+  id                  String    @id @default(uuid())
+  weekStart           DateTime  @db.Date
+  nutritionAdherence  Float
+  workoutAdherence    Float
+  overallAdherence    Float
+  daysCompleted       Int
+  daysExpected        Int
+  aiObservation       String?
+  adjustmentSuggested Boolean   @default(false)
+  calculatedBySystem  Boolean   @default(true)
+  trainerNote         String?
+  reviewedByTrainer   Boolean   @default(false)
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@unique([clientId, weekStart])
+  @@map("weekly_adherence")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 9 – COMUNICACIÓN
+// ─────────────────────────────────────────────────────────────
+
+model Message {
+  id             String        @id @default(uuid())
+  content        String
+  senderRole     MessageSender
+  readAt         DateTime?
+  aiSuggested    Boolean       @default(false)
+  attachmentUrl  String?
+  attachmentType String?
+  createdAt      DateTime      @default(now())
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+  trainerId String
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  @@index([trainerId, clientId, createdAt])
+  @@map("messages")
+}
+
+model WeeklyReport {
+  id          String    @id @default(uuid())
+  weekStart   DateTime  @db.Date
+  content     Json
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+  trainerId String
+
+  @@index([trainerId, weekStart])
+  @@map("weekly_reports")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 10 – IA Y COSTOS
+// ─────────────────────────────────────────────────────────────
+
+model AIInteraction {
+  id           String            @id @default(uuid())
+  type         AIInteractionType
+  inputTokens  Int
+  outputTokens Int
+  costUsd      Float
+  createdAt    DateTime          @default(now())
+
+  trainer   Trainer? @relation(fields: [trainerId], references: [id])
+  trainerId String?
+
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  @@index([trainerId, createdAt])
+  @@index([clientId, type])
+  @@map("ai_interactions")
+}
+
+model AIRateLimit {
+  id              String            @id @default(uuid())
+  interactionType AIInteractionType
+  count           Int               @default(0)
+  periodStart     DateTime
+  periodEnd       DateTime
+  maxAllowed      Int
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String
+
+  @@unique([trainerId, interactionType, periodStart])
+  @@map("ai_rate_limits")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 11 – FEEDBACK DEL CLIENTE
+// ─────────────────────────────────────────────────────────────
+
+model ClientFeedback {
+  id          String       @id @default(uuid())
+  type        FeedbackType
+  description String
+  entityType  String
+  entityId    String
+  resolved    Boolean      @default(false)
+  resolvedAt  DateTime?
+  trainerNote String?
+  createdAt   DateTime     @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([clientId, resolved])
+  @@map("client_feedback")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 12 – AUDITORÍA
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  entityType    String
+  entityId      String
+  action        String
+  changedBy     String
+  changedByRole String
+  before        Json?
+  after         Json?
+  createdAt     DateTime @default(now())
+
+  trainer   Trainer? @relation(fields: [trainerId], references: [id])
+  trainerId String?
+
+  @@index([entityType, entityId])
+  @@index([trainerId, createdAt])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 13 – FEATURE FLAGS
+// ─────────────────────────────────────────────────────────────
+
+model FeatureFlag {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  description String?
+  isEnabled   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  trainerOverrides FeatureFlagOverride[]
+
+  @@map("feature_flags")
+}
+
+model FeatureFlagOverride {
+  id        String  @id @default(uuid())
+  isEnabled Boolean
+
+  flag      FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  flagId    String
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String
+
+  @@unique([flagId, trainerId])
+  @@map("feature_flag_overrides")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BLOQUE 14 – GAMIFICACIÓN (V2)
+// ─────────────────────────────────────────────────────────────
+
+model TrainerChallenge {
+  id                String   @id @default(uuid())
+  title             String
+  description       String?
+  metric            String
+  startDate         DateTime @db.Date
+  endDate           DateTime @db.Date
+  rewardDescription String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String
+
+  participants ChallengeParticipant[]
+
+  @@map("trainer_challenges")
+}
+
+model ChallengeParticipant {
+  id             String @id @default(uuid())
+  anonymousAlias String
+  score          Int    @default(0)
+  rank           Int?
+
+  challenge   TrainerChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  challengeId String
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@unique([challengeId, clientId])
+  @@map("challenge_participants")
+}
