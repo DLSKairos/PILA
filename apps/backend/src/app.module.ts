@@ -1,10 +1,37 @@
-import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { Module } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
+import { PrismaModule } from './prisma/prisma.module'
+import { HealthModule } from './modules/health/health.module'
+import { AuthModule } from './modules/auth/auth.module'
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module'
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module'
+import { TrainersModule } from './modules/trainers/trainers.module'
+import { ClientsModule } from './modules/clients/clients.module'
+import { OnboardingModule } from './modules/onboarding/onboarding.module'
+import { AIModule } from './modules/ai/ai.module'
+import { NutritionModule } from './modules/nutrition/nutrition.module'
+import { TrackingModule } from './modules/tracking/tracking.module'
+import { GeolocationModule } from './modules/geolocation/geolocation.module'
+import { ProgressModule } from './modules/progress/progress.module'
+import { FeedbackModule } from './modules/feedback/feedback.module'
 
 @Module({
-  imports: [],
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    HealthModule,
+    AuthModule,
+    SubscriptionsModule,
+    FeatureFlagsModule,
+    TrainersModule,
+    ClientsModule,
+    OnboardingModule,
+    AIModule,
+    NutritionModule,
+    TrackingModule,
+    GeolocationModule,
+    ProgressModule,
+    FeedbackModule,
+  ],
 })
 export class AppModule {}

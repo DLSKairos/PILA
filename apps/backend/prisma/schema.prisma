@@ -127,6 +127,9 @@ model Trainer {
   aiRateLimits          AIRateLimit[]
   featureFlagOverrides  FeatureFlagOverride[]
   auditLogs             AuditLog[]
+  invitations           ClientInvitation[]
+  aiJobQueue            AIJobQueue[]
+  paymentIntents        PaymentIntent[]
 
   @@map("trainers")
 }
@@ -196,10 +199,13 @@ model Client {
   weeklyAdherence       WeeklyAdherence[]
   streakHistory         StreakHistory[]
   messages              Message[]
-  feedback                ClientFeedback[]
-  aiInteractions          AIInteraction[]
-  challengeParticipants   ChallengeParticipant[]
-  scheduledNotifications  ScheduledNotification[]
+  feedback                    ClientFeedback[]
+  aiInteractions              AIInteraction[]
+  challengeParticipants       ChallengeParticipant[]
+  scheduledNotifications      ScheduledNotification[]
+  planChangeNotifications     PlanChangeNotification[]
+  notificationSettings        ClientNotificationSettings?
+  aiJobQueue                  AIJobQueue[]
 
   @@map("clients")
 }
@@ -422,9 +428,10 @@ model CloudinaryAsset {
   folder       String
   uploadedAt   DateTime @default(now())
 
-  exercise      Exercise?      @relation("exerciseAsset")
-  progressFront ProgressPhoto? @relation("frontPhoto")
-  progressSide  ProgressPhoto? @relation("sidePhoto")
+  exercise        Exercise?         @relation("exerciseAsset")
+  progressFront   ProgressPhoto?    @relation("frontPhoto")
+  progressSide    ProgressPhoto?    @relation("sidePhoto")
+  exerciseLibrary ExerciseLibrary?  @relation("libraryAsset")
 
   @@map("cloudinary_assets")
 }
@@ -569,9 +576,10 @@ model DailyLog {
   gym   ClientGym? @relation(fields: [gymId], references: [id])
   gymId String?
 
-  mealLogs     MealLog[]
-  exerciseLogs ExerciseLog[]
-  waterLogs    WaterLog[]
+  mealLogs          MealLog[]
+  exerciseLogs      ExerciseLog[]
+  waterLogs         WaterLog[]
+  gymSessionSummary GymSessionSummary?
 
   @@unique([clientId, date])
   @@index([date])
@@ -923,4 +931,241 @@ model ChallengeParticipant {
 
   @@unique([challengeId, clientId])
   @@map("challenge_participants")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NUEVAS TABLAS FASE 1 – MVP
+// ─────────────────────────────────────────────────────────────
+
+model ClientInvitation {
+  id         String    @id @default(uuid())
+  email      String
+  token      String    @unique
+  expiresAt  DateTime
+  accepted   Boolean   @default(false)
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainerId String
+
+  @@index([token])
+  @@index([email])
+  @@map("client_invitations")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  userId    String
+  userRole  UserRole
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([token])
+  @@index([userId, userRole])
+  @@map("password_reset_tokens")
+}
+
+model Food {
+  id       String  @id @default(uuid())
+  name     String
+  nameEn   String?
+  category String
+  per100g  Json
+  isCommon Boolean @default(false)
+  isActive Boolean @default(true)
+
+  @@index([name])
+  @@index([category])
+  @@map("foods")
+}
+
+model FoodSubstitution {
+  id             String @id @default(uuid())
+  originalFood   String
+  substituteFood String
+  ratio          Float
+  calorieMatch   Float
+  proteinMatch   Float
+  carbsMatch     Float
+  fatMatch       Float
+
+  @@index([originalFood])
+  @@map("food_substitutions")
+}
+
+model ExerciseLibrary {
+  id           String   @id @default(uuid())
+  name         String
+  nameEn       String?
+  muscleGroup  String
+  equipment    String
+  difficulty   String
+  instructions String
+  tips         String?
+  assetId      String?          @unique
+  asset        CloudinaryAsset? @relation("libraryAsset", fields: [assetId], references: [id])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@index([muscleGroup, difficulty])
+  @@index([equipment])
+  @@map("exercise_library")
+}
+
+model AIJobQueue {
+  id          String            @id @default(uuid())
+  type        AIInteractionType
+  payload     Json
+  status      String            @default("pending")
+  attempts    Int               @default(0)
+  maxAttempts Int               @default(3)
+  error       String?
+  result      Json?
+  scheduledAt DateTime          @default(now())
+  processedAt DateTime?
+
+  trainer   Trainer? @relation(fields: [trainerId], references: [id])
+  trainerId String?
+
+  client   Client? @relation(fields: [clientId], references: [id])
+  clientId String?
+
+  @@index([status, scheduledAt])
+  @@index([trainerId])
+  @@index([clientId])
+  @@map("ai_job_queue")
+}
+
+model GymSessionSummary {
+  id                 String   @id @default(uuid())
+  date               DateTime @db.Date
+  duration           Int
+  exercisesCompleted Int
+  exercisesTotal     Int
+  completionPct      Float
+  personalRecords    Json?
+  aiMessage          String?
+  createdAt          DateTime @default(now())
+
+  dailyLog   DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Cascade)
+  dailyLogId String   @unique
+
+  @@map("gym_session_summaries")
+}
+
+model PlanChangeNotification {
+  id         String    @id @default(uuid())
+  changeType String
+  summary    String
+  details    Json?
+  seenAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String
+
+  @@index([clientId, seenAt])
+  @@map("plan_change_notifications")
+}
+
+model ClientNotificationSettings {
+  id              String  @id @default(uuid())
+  mealReminders   Boolean @default(true)
+  waterReminders  Boolean @default(true)
+  gymProximity    Boolean @default(true)
+  streakAlerts    Boolean @default(true)
+  trainerMessages Boolean @default(true)
+  planUpdates     Boolean @default(true)
+  quietHoursStart String?
+  quietHoursEnd   String?
+
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clientId String @unique
+
+  @@map("client_notification_settings")
+}
+
+model TermsAcceptance {
+  id         String   @id @default(uuid())
+  userId     String
+  userRole   UserRole
+  version    String
+  acceptedAt DateTime @default(now())
+  ipAddress  String?
+  userAgent  String?
+
+  @@index([userId, userRole])
+  @@map("terms_acceptance")
+}
+
+model DeletionRequest {
+  id          String    @id @default(uuid())
+  userId      String
+  userRole    UserRole
+  reason      String?
+  status      String    @default("pending")
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([status])
+  @@map("deletion_requests")
+}
+
+model SupportTicket {
+  id          String    @id @default(uuid())
+  subject     String
+  description String
+  category    String
+  status      String    @default("open")
+  userId      String
+  userRole    UserRole
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId, userRole])
+  @@map("support_tickets")
+}
+
+model SystemLog {
+  id        String   @id @default(uuid())
+  level     String
+  context   String
+  message   String
+  stack     String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([level, createdAt])
+  @@index([context, createdAt])
+  @@map("system_logs")
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+model PaymentIntent {
+  id        String   @id @default(uuid())
+  amount    Float
+  currency  String   @default("USD")
+  status    String
+  method    String
+  reference String?
+  planName  String
+  createdAt DateTime @default(now())
+
+  trainer   Trainer @relation(fields: [trainerId], references: [id])
+  trainerId String
+
+  @@index([trainerId, status])
+  @@map("payment_intents")
 }
