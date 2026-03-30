@@ -14,11 +14,14 @@ import { TrackingModule } from './modules/tracking/tracking.module'
 import { GeolocationModule } from './modules/geolocation/geolocation.module'
 import { ProgressModule } from './modules/progress/progress.module'
 import { FeedbackModule } from './modules/feedback/feedback.module'
+import { EmailModule } from './modules/email/email.module'
+import { WorkoutModule } from './modules/workout/workout.module'
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    EmailModule,
     HealthModule,
     AuthModule,
     SubscriptionsModule,
@@ -28,6 +31,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module'
     OnboardingModule,
     AIModule,
     NutritionModule,
+    WorkoutModule,
     TrackingModule,
     GeolocationModule,
     ProgressModule,

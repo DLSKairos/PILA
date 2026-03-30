@@ -12,6 +12,7 @@ import { randomBytes } from 'crypto'
 import { PrismaService } from '../../prisma/prisma.service'
 import { RegisterTrainerDto } from './dto/register-trainer.dto'
 import { LoginDto } from './dto/login.dto'
+import { EmailService } from '../email/email.service'
 
 @Injectable()
 export class AuthService {
@@ -19,6 +20,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private email: EmailService,
   ) {}
 
   async registerTrainer(dto: RegisterTrainerDto) {
@@ -51,6 +53,8 @@ export class AuthService {
         },
       },
     })
+
+    await this.email.sendWelcomeTrainer(trainer.email, trainer.name, trainer.preferredLanguage)
 
     return this.generateTokens(trainer.id, 'TRAINER')
   }
@@ -119,7 +123,9 @@ export class AuthService {
       },
     })
 
-    return { token } // En producción: enviar por email
+    const lang = trainer?.preferredLanguage ?? client?.preferredLanguage ?? 'es'
+    await this.email.sendResetPassword(email, token, lang)
+    return // no exponer el token en producción
   }
 
   async resetPassword(token: string, newPassword: string) {
