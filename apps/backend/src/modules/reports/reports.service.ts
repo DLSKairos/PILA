@@ -52,6 +52,90 @@ export class ReportsService {
     }
   }
 
+  // ── AJUSTE 4 — Reporte ejecutivo para dashboard ───────────────
+
+  async getLatestSummary(trainerId: string) {
+    const today = new Date()
+    const weekStart = new Date(today)
+    // Inicio de la semana actual (lunes)
+    const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1
+    weekStart.setDate(today.getDate() - dayOfWeek)
+    weekStart.setHours(0, 0, 0, 0)
+
+    const clients = await this.prisma.client.findMany({
+      where: { trainerId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        weeklyAdherence: {
+          where: { weekStart: { gte: weekStart } },
+          orderBy: { weekStart: 'desc' },
+          take: 1,
+        },
+        dailyLogs: {
+          where: {
+            date: { gte: weekStart },
+            workoutDone: false,
+            isRestDay: false,
+          },
+          select: { id: true },
+        },
+      },
+    })
+
+    const totalClients = clients.length
+
+    const clientStats = clients.map((c) => {
+      const adherence = c.weeklyAdherence[0]?.overallAdherence ?? 0
+      const daysMissed = c.dailyLogs.length
+      return {
+        clientId: c.id,
+        name: c.name.split(' ')[0],
+        adherence: Math.round(adherence),
+        daysMissed,
+      }
+    })
+
+    const avgAdherence =
+      totalClients > 0
+        ? Math.round(clientStats.reduce((sum, s) => sum + s.adherence, 0) / totalClients)
+        : 0
+
+    const topPerformer = clientStats.length > 0
+      ? clientStats.reduce((best, s) => (s.adherence > best.adherence ? s : best))
+      : null
+
+    const needsAttention = clientStats
+      .filter((s) => s.adherence < 50)
+      .sort((a, b) => a.adherence - b.adherence)
+
+    const aiCostRaw = await this.prisma.aIInteraction.aggregate({
+      where: {
+        trainerId,
+        createdAt: { gte: weekStart },
+      },
+      _sum: { costUsd: true },
+    })
+
+    const aiCostThisWeek = Math.round((aiCostRaw._sum.costUsd ?? 0) * 10000) / 10000
+
+    return {
+      weekStart: weekStart.toISOString().substring(0, 10),
+      totalClients,
+      avgAdherence,
+      topPerformer: topPerformer
+        ? { clientId: topPerformer.clientId, name: topPerformer.name, adherence: topPerformer.adherence }
+        : null,
+      needsAttention: needsAttention.map((s) => ({
+        clientId: s.clientId,
+        name: s.name,
+        adherence: s.adherence,
+        daysMissed: s.daysMissed,
+      })),
+      aiCostThisWeek,
+    }
+  }
+
   // ── CRON: Reporte semanal — lunes 7:00 AM ─────────────────
   @Cron('0 7 * * 1')
   async generateWeeklyReports() {

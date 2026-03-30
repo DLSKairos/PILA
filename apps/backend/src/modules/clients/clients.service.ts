@@ -55,7 +55,12 @@ export class ClientsService {
       include: { profile: { include: { restrictions: true, injuries: true } } },
     })
     if (!client) throw new NotFoundException('Cliente no encontrado')
-    return client
+
+    const feedbackPending = await this.prisma.clientFeedback.count({
+      where: { clientId, resolved: false },
+    })
+
+    return { ...client, feedbackPending }
   }
 
   async updateClient(trainerId: string, clientId: string, dto: any) {

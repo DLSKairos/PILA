@@ -25,4 +25,11 @@ export class ReportsController {
   getAICosts(@CurrentUser() user: any) {
     return this.reportsService.getAICosts(user.id)
   }
+
+  // ── AJUSTE 4 — Reporte ejecutivo para dashboard ───────────────
+
+  @Get('latest')
+  getLatestSummary(@CurrentUser() user: any) {
+    return this.reportsService.getLatestSummary(user.id)
+  }
 }

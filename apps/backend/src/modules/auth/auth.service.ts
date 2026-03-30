@@ -4,6 +4,8 @@ import {
   UnauthorizedException,
   NotFoundException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
@@ -69,6 +71,7 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, trainer.passwordHash)
     if (!valid) throw new UnauthorizedException('Credenciales inválidas')
 
+    await this.checkSessionLimit(trainer.id, 'TRAINER')
     return this.generateTokens(trainer.id, 'TRAINER')
   }
 
@@ -82,6 +85,7 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, client.passwordHash)
     if (!valid) throw new UnauthorizedException('Credenciales inválidas')
 
+    await this.checkSessionLimit(client.id, 'CLIENT')
     return this.generateTokens(client.id, 'CLIENT')
   }
 
@@ -153,6 +157,134 @@ export class AuthService {
       where: { token },
       data: { usedAt: new Date() },
     })
+  }
+
+  // ── AJUSTE 1 — Límite de sesiones activas ────────────────────
+
+  private async checkSessionLimit(userId: string, userRole: string) {
+    const activeSessions = await this.prisma.refreshToken.findMany({
+      where: {
+        userId,
+        userRole: userRole as any,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    if (activeSessions.length >= 3) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.CONFLICT,
+          message: 'Límite de sesiones activas alcanzado (máximo 3)',
+          sessions: activeSessions.map((s) => ({
+            id: s.id,
+            createdAt: s.createdAt,
+            expiresAt: s.expiresAt,
+          })),
+        },
+        HttpStatus.CONFLICT,
+      )
+    }
+  }
+
+  async getSessions(userId: string, userRole: string, currentToken: string) {
+    const sessions = await this.prisma.refreshToken.findMany({
+      where: {
+        userId,
+        userRole: userRole as any,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return sessions.map((s) => ({
+      id: s.id,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+      isCurrent: s.token === currentToken,
+    }))
+  }
+
+  async revokeSession(
+    userId: string,
+    userRole: string,
+    tokenId: string,
+    currentToken: string,
+  ) {
+    const session = await this.prisma.refreshToken.findFirst({
+      where: { id: tokenId, userId, userRole: userRole as any },
+    })
+
+    if (!session) throw new NotFoundException('Sesión no encontrada')
+
+    if (session.token === currentToken) {
+      throw new BadRequestException('No puedes cerrar la sesión actual desde este endpoint. Usa /auth/logout.')
+    }
+
+    await this.prisma.refreshToken.delete({ where: { id: tokenId } })
+    return { success: true, message: 'Sesión cerrada correctamente' }
+  }
+
+  // ── AJUSTE 2 — Cambiar contraseña ────────────────────────────
+
+  async changePassword(
+    userId: string,
+    userRole: string,
+    currentPassword: string,
+    newPassword: string,
+    currentToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    let storedHash: string
+
+    if (userRole === 'TRAINER') {
+      const trainer = await this.prisma.trainer.findUnique({ where: { id: userId } })
+      if (!trainer) throw new NotFoundException('Usuario no encontrado')
+      storedHash = trainer.passwordHash
+    } else {
+      const client = await this.prisma.client.findUnique({ where: { id: userId } })
+      if (!client) throw new NotFoundException('Usuario no encontrado')
+      storedHash = client.passwordHash
+    }
+
+    const valid = await bcrypt.compare(currentPassword, storedHash)
+    if (!valid) throw new BadRequestException('La contraseña actual es incorrecta')
+
+    const newHash = await bcrypt.hash(newPassword, 12)
+
+    if (userRole === 'TRAINER') {
+      await this.prisma.trainer.update({ where: { id: userId }, data: { passwordHash: newHash } })
+    } else {
+      await this.prisma.client.update({ where: { id: userId }, data: { passwordHash: newHash } })
+    }
+
+    // Invalidar todos los refresh tokens excepto el actual
+    const currentSession = await this.prisma.refreshToken.findUnique({
+      where: { token: currentToken },
+    })
+
+    await this.prisma.refreshToken.deleteMany({
+      where: {
+        userId,
+        userRole: userRole as any,
+        ...(currentSession ? { NOT: { id: currentSession.id } } : {}),
+      },
+    })
+
+    // Registrar en AuditLog
+    await this.prisma.auditLog.create({
+      data: {
+        entityType: userRole === 'TRAINER' ? 'Trainer' : 'Client',
+        entityId: userId,
+        action: 'password_changed',
+        changedBy: userId,
+        changedByRole: userRole,
+        ...(userRole === 'TRAINER' ? { trainerId: userId } : {}),
+      },
+    })
+
+    return { success: true, message: 'Contraseña actualizada' }
   }
 
   private async generateTokens(userId: string, role: string) {

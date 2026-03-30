@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common'
 import { FeedbackService } from './feedback.service'
 import { JwtGuard } from '../../common/guards/jwt.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -27,8 +27,12 @@ export class FeedbackController {
   @UseGuards(RolesGuard)
   @Roles('TRAINER')
   @Get('trainer/clients/:id/feedback')
-  getClientFeedback(@Param('id') clientId: string) {
-    return this.feedbackService.getClientFeedback(clientId)
+  getClientFeedback(
+    @Param('id') clientId: string,
+    @Query('resolved') resolved?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.feedbackService.getClientFeedback(clientId, resolved, type)
   }
 
   @UseGuards(RolesGuard)

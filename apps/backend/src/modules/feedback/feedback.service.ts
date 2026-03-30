@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common'
+import { FeedbackType } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 
 @Injectable()
@@ -9,9 +10,21 @@ export class FeedbackService {
     return this.prisma.clientFeedback.create({ data: { clientId, ...dto } })
   }
 
-  async getClientFeedback(clientId: string) {
+  async getClientFeedback(clientId: string, resolved?: string, type?: string) {
+    const resolvedFilter: boolean | undefined =
+      resolved === 'true' ? true : resolved === 'false' ? false : undefined
+
+    const typeFilter: FeedbackType | undefined =
+      type && Object.values(FeedbackType).includes(type as FeedbackType)
+        ? (type as FeedbackType)
+        : undefined
+
     return this.prisma.clientFeedback.findMany({
-      where: { clientId },
+      where: {
+        clientId,
+        ...(resolvedFilter !== undefined ? { resolved: resolvedFilter } : {}),
+        ...(typeFilter !== undefined ? { type: typeFilter } : {}),
+      },
       orderBy: { createdAt: 'desc' },
     })
   }
