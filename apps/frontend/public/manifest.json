@@ -1,0 +1,13 @@
+{
+  "name": "PILA — El gym en tu bolsillo",
+  "short_name": "PILA",
+  "description": "El gym en tu bolsillo, el cambio en tu vida",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#FF5C00",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
