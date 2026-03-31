@@ -12,7 +12,45 @@ export class ChatService {
       orderBy: { createdAt: 'desc' },
       skip,
       take: limit,
+      select: {
+        id: true,
+        content: true,
+        senderRole: true,
+        trainerId: true,
+        clientId: true,
+        createdAt: true,
+        readAt: true,
+        attachmentUrl: true,
+        attachmentType: true,
+      },
     })
+  }
+
+  async getMessagesForClient(clientId: string, page = 1, limit = 30) {
+    const skip = (page - 1) * limit
+    const messages = await this.prisma.message.findMany({
+      where: { clientId },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        content: true,
+        senderRole: true,
+        trainerId: true,
+        clientId: true,
+        createdAt: true,
+        readAt: true,
+      },
+    })
+    return messages.map((m) => ({
+      id: m.id,
+      content: m.content,
+      senderRole: m.senderRole,
+      senderId: m.senderRole === 'TRAINER' ? m.trainerId : m.clientId,
+      createdAt: m.createdAt,
+      readAt: m.readAt,
+    }))
   }
 
   async saveMessage(data: {

@@ -23,7 +23,7 @@ export default function HomePage() {
       .then(([todayRes]) => {
         const log = (todayRes.data as { data: DailyLog }).data
         setDailyLog(log)
-        setToday(log)
+        setToday({ ...log, mealCompletions: log.mealCompletions ?? [] })
       })
       .catch(console.error)
       .finally(() => setLoading(false))

@@ -39,7 +39,7 @@ export default function ActivatePage() {
     setLoading(true)
     setError('')
     try {
-      const res = await authService.activateClient(token!)
+      const res = await authService.activateClient(token!, password)
       const { accessToken, user } = (res.data as { data: { accessToken: string; user: { role: 'TRAINER' | 'CLIENT'; id: string; email: string } } }).data
       login(accessToken, user.role, user.id, user.email)
       navigate(PATHS.CLIENT.ONBOARDING, { replace: true })

@@ -5,8 +5,9 @@ export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 export interface Client {
   id: string
   email: string
-  firstName: string
-  lastName: string
+  name: string
+  firstName?: string
+  lastName?: string
   phone?: string
   isActive: boolean
   trainerId: string

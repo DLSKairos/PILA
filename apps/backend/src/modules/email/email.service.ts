@@ -43,7 +43,7 @@ export class EmailService {
 
   async sendClientInvitation(to: string, trainerName: string, token: string, lang = 'es') {
     const frontendUrl = this.config.get('FRONTEND_URL') ?? 'http://localhost:5173'
-    const link = `${frontendUrl}/activar?token=${token}`
+    const link = `${frontendUrl}/activate?token=${token}`
     const subjects = { es: `${trainerName} te invitó a PILA 💪`, en: `${trainerName} invited you to PILA 💪` }
     const html = lang === 'en'
       ? `<h2>You have been invited!</h2><p><strong>${trainerName}</strong> has added you as their client on PILA.</p><p><a href="${link}" style="background:#FF5C00;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;margin-top:16px;">Activate my account</a></p><p style="color:#999;font-size:12px;">Link expires in 7 days.</p>`

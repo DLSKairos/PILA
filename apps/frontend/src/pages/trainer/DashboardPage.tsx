@@ -30,8 +30,17 @@ export default function DashboardPage() {
   const [dashData, setDashData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const profile = useTrainerStore(s => s.profile)
+  const setProfile = useTrainerStore(s => s.setProfile)
   const setDashboardStats = useTrainerStore(s => s.setDashboardStats)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!profile) {
+      trainerService.getProfile().then(res => {
+        setProfile((res.data as { data: Parameters<typeof setProfile>[0] }).data)
+      }).catch(console.error)
+    }
+  }, [profile, setProfile])
 
   useEffect(() => {
     Promise.all([trainerService.getDashboard(), trainerService.getLatestReport()])
@@ -67,7 +76,7 @@ export default function DashboardPage() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
-  const firstName = profile?.firstName ?? 'Entrenador'
+  const firstName = profile?.name?.split(' ')[0] ?? 'Entrenador'
 
   if (loading) {
     return (
@@ -87,7 +96,7 @@ export default function DashboardPage() {
       {/* Saludo */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 32, color: 'var(--txt)', letterSpacing: 1 }}>
-          {greeting}, {firstName} 👋
+          {greeting}, Entrenador {firstName} 👋
         </h1>
         <p style={{ fontSize: 12, color: 'var(--txt-sub)', fontFamily: '"DM Mono", monospace' }}>
           {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}

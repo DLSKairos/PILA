@@ -10,6 +10,8 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isMine, senderName, senderPhoto }: MessageBubbleProps) {
+  const isRead = Boolean(message.readAt)
+
   return (
     <div style={{
       display: 'flex',
@@ -34,13 +36,22 @@ export function MessageBubble({ message, isMine, senderName, senderPhoto }: Mess
         </div>
         <div style={{
           fontSize: 10,
-          color: 'var(--txt-dim)',
+          color: isMine ? 'var(--txt-dim)' : 'var(--txt-sub)',
           marginTop: 4,
           textAlign: isMine ? 'right' : 'left',
           fontFamily: '"DM Mono", monospace',
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: isMine ? 'flex-end' : 'flex-start',
+          gap: 4,
         }}>
-          {formatTime(message.createdAt)}
-          {isMine && <span style={{ marginLeft: 4 }}>{message.isRead ? '✓✓' : '✓'}</span>}
+          <span>{formatTime(message.createdAt)}</span>
+          {isMine && (
+            <span style={{ color: isRead ? 'var(--orange)' : 'var(--txt-dim)' }}>
+              {isRead ? '✓✓' : '✓'}
+            </span>
+          )}
         </div>
       </div>
     </div>

@@ -29,6 +29,7 @@ export default function ClientsPage() {
   const [form, setForm] = useState<CreateForm>({ firstName: '', lastName: '', email: '' })
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const loadClients = () => {
@@ -53,7 +54,7 @@ export default function ClientsPage() {
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter(c =>
-        `${c.firstName} ${c.lastName} ${c.email}`.toLowerCase().includes(q)
+        `${c.name} ${c.email}`.toLowerCase().includes(q)
       )
     }
     setFiltered(result)
@@ -69,9 +70,24 @@ export default function ClientsPage() {
       setForm({ firstName: '', lastName: '', email: '' })
       loadClients()
     } catch (err: any) {
-      setCreateError(err.response?.data?.message ?? 'Error al crear cliente')
+      const msg = err.response?.data?.message ?? err.response?.data?.error ?? 'Error al crear cliente'
+      setCreateError(Array.isArray(msg) ? msg[0] : msg)
     } finally {
       setCreating(false)
+    }
+  }
+
+  const handleDelete = async (e: React.MouseEvent, clientId: string, clientName: string) => {
+    e.stopPropagation()
+    if (!window.confirm(`¿Eliminar a ${clientName}? Esta acción no se puede deshacer.`)) return
+    setDeletingId(clientId)
+    try {
+      await clientsService.delete(clientId)
+      setClients(prev => prev.filter(c => c.id !== clientId))
+    } catch {
+      alert('Error al eliminar el cliente')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -138,10 +154,10 @@ export default function ClientsPage() {
             onClick={() => navigate(PATHS.TRAINER.CLIENT_DETAIL(c.id))}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Avatar name={`${c.firstName} ${c.lastName}`} size="md" />
+              <Avatar name={c.name} size="md" />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--txt)' }}>
-                  {c.firstName} {c.lastName}
+                  {c.name}
                 </div>
                 <div style={{
                   fontSize: 12,
@@ -159,9 +175,24 @@ export default function ClientsPage() {
                   </div>
                 )}
               </div>
-              <Badge variant={c.isActive ? 'success' : 'neutral'} dot>
-                {c.isActive ? 'Activo' : 'Inactivo'}
-              </Badge>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Badge variant={c.isActive ? 'success' : 'neutral'} dot>
+                  {c.isActive ? 'Activo' : 'Inactivo'}
+                </Badge>
+                <button
+                  onClick={e => handleDelete(e, c.id, c.name ?? `${c.firstName} ${c.lastName}`)}
+                  disabled={deletingId === c.id}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--txt-dim)', fontSize: 16, padding: '4px',
+                    borderRadius: 4, lineHeight: 1,
+                    opacity: deletingId === c.id ? 0.4 : 1,
+                  }}
+                  title="Eliminar cliente"
+                >
+                  🗑
+                </button>
+              </div>
             </div>
           </Card>
         ))}

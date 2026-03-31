@@ -34,6 +34,6 @@ export const authService = {
   closeSession: (tokenId: string) =>
     api.delete(`/auth/sessions/${tokenId}`),
 
-  activateClient: (token: string) =>
-    api.post('/auth/client/activate', { token }),
+  activateClient: (token: string, password: string) =>
+    api.post('/auth/client/activate', { token, password }),
 }

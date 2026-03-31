@@ -2,7 +2,10 @@ import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator'
 
 export class RegisterTrainerDto {
   @IsString()
-  name: string
+  firstName: string
+
+  @IsString()
+  lastName: string
 
   @IsEmail()
   email: string

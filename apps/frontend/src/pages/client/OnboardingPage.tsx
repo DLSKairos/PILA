@@ -80,8 +80,13 @@ export default function OnboardingPage() {
       const reply = (res.data as { data?: { reply?: string; completed?: boolean } }).data?.reply ?? ''
       if (reply) setMessages(m => [...m, { role: 'ai', text: reply }])
       if ((res.data as { data?: { completed?: boolean } }).data?.completed) setCompleted(true)
-    } catch {
-      setMessages(m => [...m, { role: 'ai', text: 'Gracias por tu respuesta.' }])
+    } catch (err: any) {
+      const isCredits = err?.response?.data?.message?.toString().toLowerCase().includes('credit') ||
+        err?.response?.status === 400
+      const errMsg = isCredits
+        ? 'El asistente IA no está disponible en este momento. Tu entrenador lo activará pronto. Puedes continuar igual 💪'
+        : 'Hubo un problema al procesar tu respuesta. Intenta de nuevo.'
+      setMessages(m => [...m, { role: 'ai', text: errMsg }])
     } finally {
       setAiThinking(false)
     }
@@ -144,9 +149,6 @@ export default function OnboardingPage() {
         <div style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 24, color: 'var(--orange)', marginBottom: 8 }}>
           PILA
         </div>
-        <p style={{ fontSize: 12, color: 'var(--txt-sub)', marginBottom: 8 }}>
-          Pregunta {Math.min(turn, MAX_TURNS)} de {MAX_TURNS}
-        </p>
         <ProgressBar value={turn} max={MAX_TURNS} color="var(--orange)" />
       </div>
 

@@ -29,7 +29,7 @@ interface TrackingStore {
   setStreak: (count: number, active: boolean) => void
 }
 
-export const useTrackingStore = create<TrackingStore>((set, get) => ({
+export const useTrackingStore = create<TrackingStore>((set) => ({
   today: null,
   mealCompletions: {},
   waterCount: 0,
@@ -47,12 +47,12 @@ export const useTrackingStore = create<TrackingStore>((set, get) => ({
   setToday: (today) =>
     set({
       today,
-      waterCount: today.waterCount,
-      waterGoal: today.waterGoal,
+      waterCount: today.waterCount ?? 0,
+      waterGoal: today.waterGoal ?? 0,
       mealCompletions: Object.fromEntries(
-        today.mealCompletions.map((mc) => [mc.mealItemId, true])
+        (today.mealCompletions ?? []).map((mc) => [mc.mealItemId, true])
       ),
-      streakCount: today.streakCount,
+      streakCount: today.streakCount ?? 0,
     }),
 
   completeMeal: (mealItemId) =>
@@ -89,5 +89,3 @@ export const useTrackingStore = create<TrackingStore>((set, get) => ({
   setStreak: (streakCount, streakActive) => set({ streakCount, streakActive }),
 }))
 
-// Suppress unused variable warning for get
-void (get as unknown)

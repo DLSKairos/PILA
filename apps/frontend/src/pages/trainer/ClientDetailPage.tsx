@@ -6,15 +6,27 @@ import { workoutService } from '@/services/workout.service'
 import { chatService } from '@/services/chat.service'
 import { aiService } from '@/services/ai.service'
 import { useSocket } from '@/hooks/useSocket'
-import { Card, Avatar, Button, Badge, ProgressBar, Loader } from '@/components/ui'
+import { Card, Avatar, Button, Badge, ProgressBar, Loader, Input } from '@/components/ui'
 import { MessageBubble } from '@/components/shared/MessageBubble'
 import { PATHS } from '@/router/paths'
-import type { Client } from '@/types/client.types'
+import type { Client, ClientGoal, ActivityLevel, Gender } from '@/types/client.types'
 import type { NutritionPlan } from '@/types/nutrition.types'
 import type { WorkoutPlan } from '@/types/workout.types'
 import type { Message } from '@/types/chat.types'
 
 type Tab = 'profile' | 'nutrition' | 'workout' | 'progress' | 'feedback' | 'chat'
+
+interface ProfileFormData {
+  currentWeight: string
+  targetWeight: string
+  height: string
+  dateOfBirth: string
+  gender: Gender | ''
+  activityLevel: ActivityLevel | ''
+  goal: ClientGoal | ''
+  restrictions: string[]
+  injuries: string[]
+}
 
 interface FeedbackItem {
   id: string
@@ -48,10 +60,44 @@ export default function ClientDetailPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { sendMessage } = useSocket()
 
+  // Profile form state
+  const [profileFormOpen, setProfileFormOpen] = useState(false)
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileSaveError, setProfileSaveError] = useState('')
+  const [profileForm, setProfileForm] = useState<ProfileFormData>({
+    currentWeight: '',
+    targetWeight: '',
+    height: '',
+    dateOfBirth: '',
+    gender: '',
+    activityLevel: '',
+    goal: '',
+    restrictions: [],
+    injuries: [],
+  })
+  const [restrictionInput, setRestrictionInput] = useState('')
+  const [injuryInput, setInjuryInput] = useState('')
+
   useEffect(() => {
     if (!id) return
     clientsService.getOne(id)
-      .then(res => setClient((res.data as any).data))
+      .then(res => {
+        const data = (res.data as any).data as Client
+        setClient(data)
+        if (data?.profile) {
+          setProfileForm({
+            currentWeight: data.profile.currentWeight?.toString() ?? '',
+            targetWeight: data.profile.targetWeight?.toString() ?? '',
+            height: data.profile.height?.toString() ?? '',
+            dateOfBirth: '',
+            gender: data.profile.gender ?? '',
+            activityLevel: data.profile.activityLevel ?? '',
+            goal: data.profile.goal ?? '',
+            restrictions: [],
+            injuries: [],
+          })
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
@@ -59,6 +105,57 @@ export default function ClientDetailPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  const handleSaveProfile = async () => {
+    if (!id) return
+    setProfileSaving(true)
+    setProfileSaveError('')
+    try {
+      const payload: Record<string, unknown> = {}
+      if (profileForm.currentWeight) payload.currentWeight = parseFloat(profileForm.currentWeight)
+      if (profileForm.targetWeight) payload.targetWeight = parseFloat(profileForm.targetWeight)
+      if (profileForm.height) payload.height = parseFloat(profileForm.height)
+      if (profileForm.dateOfBirth) payload.dateOfBirth = profileForm.dateOfBirth
+      if (profileForm.gender) payload.gender = profileForm.gender
+      if (profileForm.activityLevel) payload.activityLevel = profileForm.activityLevel
+      if (profileForm.goal) payload.goal = profileForm.goal
+      if (profileForm.restrictions.length > 0) payload.restrictions = profileForm.restrictions
+      if (profileForm.injuries.length > 0) payload.injuries = profileForm.injuries
+
+      const res = await clientsService.updateProfile(id, payload)
+      const updatedProfile = (res.data as any).data
+      setClient(prev => prev ? { ...prev, profile: updatedProfile ?? prev.profile } : prev)
+      setProfileFormOpen(false)
+    } catch {
+      setProfileSaveError('Error al guardar los datos. Intenta de nuevo.')
+    } finally {
+      setProfileSaving(false)
+    }
+  }
+
+  const handleAddRestriction = () => {
+    const val = restrictionInput.trim()
+    if (val && !profileForm.restrictions.includes(val)) {
+      setProfileForm(prev => ({ ...prev, restrictions: [...prev.restrictions, val] }))
+    }
+    setRestrictionInput('')
+  }
+
+  const handleRemoveRestriction = (tag: string) => {
+    setProfileForm(prev => ({ ...prev, restrictions: prev.restrictions.filter(r => r !== tag) }))
+  }
+
+  const handleAddInjury = () => {
+    const val = injuryInput.trim()
+    if (val && !profileForm.injuries.includes(val)) {
+      setProfileForm(prev => ({ ...prev, injuries: [...prev.injuries, val] }))
+    }
+    setInjuryInput('')
+  }
+
+  const handleRemoveInjury = (tag: string) => {
+    setProfileForm(prev => ({ ...prev, injuries: prev.injuries.filter(i => i !== tag) }))
+  }
 
   const loadTab = async (t: Tab) => {
     setTab(t)
@@ -230,6 +327,7 @@ export default function ClientDetailPage() {
         {/* PERFIL */}
         {tab === 'profile' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Datos personales (solo lectura) */}
             <Card>
               <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--txt)' }}>Datos personales</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 13 }}>
@@ -258,6 +356,7 @@ export default function ClientDetailPage() {
               </div>
             </Card>
 
+            {/* Métricas físicas (solo lectura) */}
             {client.profile && (
               <Card>
                 <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--txt)' }}>Métricas físicas</h3>
@@ -308,6 +407,287 @@ export default function ClientDetailPage() {
             {!client.profile && (
               <Card style={{ textAlign: 'center', padding: 32 }}>
                 <p style={{ color: 'var(--txt-sub)', fontSize: 14 }}>El cliente aún no ha completado su perfil</p>
+              </Card>
+            )}
+
+            {/* Botón para abrir/cerrar formulario editable */}
+            <Button
+              variant="secondary"
+              fullWidth
+              onClick={() => setProfileFormOpen(v => !v)}
+            >
+              {profileFormOpen ? '▲ Cerrar editor' : '✏️ Editar datos del cliente'}
+            </Button>
+
+            {/* Formulario editable */}
+            {profileFormOpen && (
+              <Card>
+                <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--txt)' }}>Editar perfil físico</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+                  {/* Pesos y talla */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <Input
+                      label="Peso actual (kg)"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="70"
+                      value={profileForm.currentWeight}
+                      onChange={e => setProfileForm(prev => ({ ...prev, currentWeight: e.target.value }))}
+                    />
+                    <Input
+                      label="Peso meta (kg)"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      placeholder="65"
+                      value={profileForm.targetWeight}
+                      onChange={e => setProfileForm(prev => ({ ...prev, targetWeight: e.target.value }))}
+                    />
+                    <Input
+                      label="Altura (cm)"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="170"
+                      value={profileForm.height}
+                      onChange={e => setProfileForm(prev => ({ ...prev, height: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Fecha de nacimiento */}
+                  <Input
+                    label="Fecha de nacimiento"
+                    type="date"
+                    value={profileForm.dateOfBirth}
+                    onChange={e => setProfileForm(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                  />
+
+                  {/* Género */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Género</label>
+                    <select
+                      value={profileForm.gender}
+                      onChange={e => setProfileForm(prev => ({ ...prev, gender: e.target.value as Gender | '' }))}
+                      style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--txt)',
+                        fontFamily: '"DM Sans", sans-serif',
+                        fontSize: 15,
+                        padding: '10px 12px',
+                        outline: 'none',
+                        width: '100%',
+                      }}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="MALE">Masculino</option>
+                      <option value="FEMALE">Femenino</option>
+                      <option value="OTHER">Otro</option>
+                    </select>
+                  </div>
+
+                  {/* Nivel de actividad */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Nivel de actividad</label>
+                    <select
+                      value={profileForm.activityLevel}
+                      onChange={e => setProfileForm(prev => ({ ...prev, activityLevel: e.target.value as ActivityLevel | '' }))}
+                      style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--txt)',
+                        fontFamily: '"DM Sans", sans-serif',
+                        fontSize: 15,
+                        padding: '10px 12px',
+                        outline: 'none',
+                        width: '100%',
+                      }}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="SEDENTARY">Sedentario</option>
+                      <option value="LIGHTLY_ACTIVE">Ligeramente activo</option>
+                      <option value="MODERATELY_ACTIVE">Moderadamente activo</option>
+                      <option value="VERY_ACTIVE">Muy activo</option>
+                      <option value="EXTREMELY_ACTIVE">Extremadamente activo</option>
+                    </select>
+                  </div>
+
+                  {/* Objetivo */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Objetivo</label>
+                    <select
+                      value={profileForm.goal}
+                      onChange={e => setProfileForm(prev => ({ ...prev, goal: e.target.value as ClientGoal | '' }))}
+                      style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'var(--txt)',
+                        fontFamily: '"DM Sans", sans-serif',
+                        fontSize: 15,
+                        padding: '10px 12px',
+                        outline: 'none',
+                        width: '100%',
+                      }}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="WEIGHT_LOSS">Pérdida de peso</option>
+                      <option value="MUSCLE_GAIN">Ganancia muscular</option>
+                      <option value="MAINTENANCE">Mantenimiento</option>
+                      <option value="ATHLETIC_PERFORMANCE">Rendimiento atlético</option>
+                      <option value="GENERAL_HEALTH">Salud general</option>
+                    </select>
+                  </div>
+
+                  {/* Alergias alimentarias */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Alergias / restricciones alimentarias</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Ej: gluten, lácteos..."
+                        value={restrictionInput}
+                        onChange={e => setRestrictionInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddRestriction() } }}
+                        style={{
+                          flex: 1,
+                          background: 'var(--card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--txt)',
+                          fontFamily: '"DM Sans", sans-serif',
+                          fontSize: 14,
+                          padding: '8px 12px',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddRestriction}
+                        style={{
+                          background: 'var(--border)',
+                          border: 'none',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--txt)',
+                          cursor: 'pointer',
+                          padding: '8px 12px',
+                          fontSize: 13,
+                          fontFamily: '"DM Sans", sans-serif',
+                        }}
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                    {profileForm.restrictions.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {profileForm.restrictions.map(tag => (
+                          <span key={tag} style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: 'var(--orange)',
+                            color: '#fff',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 12,
+                            padding: '3px 10px',
+                          }}>
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveRestriction(tag)}
+                              style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lesiones */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Lesiones</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Ej: rodilla, hombro..."
+                        value={injuryInput}
+                        onChange={e => setInjuryInput(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddInjury() } }}
+                        style={{
+                          flex: 1,
+                          background: 'var(--card)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--txt)',
+                          fontFamily: '"DM Sans", sans-serif',
+                          fontSize: 14,
+                          padding: '8px 12px',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddInjury}
+                        style={{
+                          background: 'var(--border)',
+                          border: 'none',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--txt)',
+                          cursor: 'pointer',
+                          padding: '8px 12px',
+                          fontSize: 13,
+                          fontFamily: '"DM Sans", sans-serif',
+                        }}
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                    {profileForm.injuries.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {profileForm.injuries.map(tag => (
+                          <span key={tag} style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: 'var(--border)',
+                            color: 'var(--txt)',
+                            borderRadius: 'var(--radius-full)',
+                            fontSize: 12,
+                            padding: '3px 10px',
+                          }}>
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveInjury(tag)}
+                              style={{ background: 'none', border: 'none', color: 'var(--txt-sub)', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {profileSaveError && (
+                    <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{profileSaveError}</p>
+                  )}
+
+                  <Button
+                    fullWidth
+                    onClick={handleSaveProfile}
+                    loading={profileSaving}
+                    disabled={profileSaving}
+                  >
+                    Guardar perfil
+                  </Button>
+                </div>
               </Card>
             )}
           </div>

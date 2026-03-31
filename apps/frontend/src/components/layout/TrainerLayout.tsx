@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { TrainerSidebar } from './TrainerSidebar'
 import { OfflineBanner } from '@/components/ui/OfflineBanner'
@@ -14,12 +15,23 @@ const mobileNavItems = [
 
 export function TrainerLayout() {
   const profile = useTrainerStore(s => s.profile)
+  const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const sidebarWidth = isCollapsed ? 64 : 240
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div
+      style={
+        { minHeight: '100vh', background: 'var(--bg)', '--sidebar-w': `${sidebarWidth}px` } as React.CSSProperties
+      }
+    >
       <OfflineBanner />
       {/* Desktop sidebar */}
       <div className="hidden md:block">
-        <TrainerSidebar />
+        <TrainerSidebar
+          isCollapsed={isCollapsed}
+          onToggle={() => setIsCollapsed(prev => !prev)}
+        />
       </div>
       {/* Mobile header */}
       <header className="md:hidden" style={{
@@ -29,13 +41,10 @@ export function TrainerLayout() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <span style={{ fontFamily: '"Bebas Neue", sans-serif', fontSize: 24, color: 'var(--orange)', letterSpacing: 2 }}>PILA</span>
-        {profile && <Avatar name={`${profile.firstName} ${profile.lastName}`} src={profile.photoUrl} size="sm" />}
+        {profile && <Avatar name={profile.name} src={profile.photoUrl} size="sm" />}
       </header>
       {/* Main content */}
-      <main
-        style={{ marginLeft: 0, paddingTop: 60, paddingBottom: 80 }}
-        className="md:ml-[240px] md:pt-0 md:pb-0"
-      >
+      <main className="trainer-main">
         <Outlet />
       </main>
       {/* Mobile bottom nav */}

@@ -10,6 +10,7 @@ export interface Message {
   attachmentType?: string
   isRead: boolean
   createdAt: string
+  readAt?: string
 }
 
 export interface Conversation {

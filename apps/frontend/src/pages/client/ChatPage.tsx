@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { format, isToday, isYesterday, isSameDay } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useChatStore } from '@/stores/chat.store'
 import { useAuthStore } from '@/stores/auth.store'
 import { chatService } from '@/services/chat.service'
@@ -7,10 +9,30 @@ import { MessageBubble } from '@/components/shared/MessageBubble'
 import { Loader } from '@/components/ui'
 import type { Message } from '@/types/chat.types'
 
+function getDateLabel(date: Date): string {
+  if (isToday(date)) return 'Hoy'
+  if (isYesterday(date)) return 'Ayer'
+  return format(date, 'd MMM', { locale: es })
+}
+
+function DateSeparator({ date }: { date: Date }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0',
+    }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      <span style={{ fontSize: 11, color: 'var(--txt-sub)', fontFamily: '"DM Sans"' }}>
+        {getDateLabel(date)}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
+  )
+}
+
 export default function ChatPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
-  const { messages, setMessages, markAllRead, isTyping, isConnected } = useChatStore()
+  const { messages, setMessages, addMessage, markAllRead, isTyping, isConnected } = useChatStore()
   const { userId } = useAuthStore()
   const { sendMessage, sendTyping } = useSocket()
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -31,8 +53,22 @@ export default function ChatPage() {
   }, [messages])
 
   const handleSend = () => {
-    if (!input.trim()) return
-    sendMessage(input.trim())
+    const content = input.trim()
+    if (!content) return
+
+    // Optimistic update: agregar mensaje localmente antes de la respuesta del servidor
+    const optimisticMessage: Message = {
+      id: `optimistic-${Date.now()}`,
+      conversationId: '',
+      senderId: userId ?? '',
+      senderRole: 'CLIENT',
+      content,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    }
+    addMessage(optimisticMessage)
+
+    sendMessage(content)
     setInput('')
     sendTyping(false)
   }
@@ -43,6 +79,27 @@ export default function ChatPage() {
     if (typingTimer.current) clearTimeout(typingTimer.current)
     typingTimer.current = setTimeout(() => sendTyping(false), 1000)
   }
+
+  // Construir lista de elementos con separadores de fecha intercalados
+  const messageElements: React.ReactNode[] = []
+  let lastDate: Date | null = null
+
+  messages.forEach((msg) => {
+    const msgDate = new Date(msg.createdAt)
+    if (!lastDate || !isSameDay(lastDate, msgDate)) {
+      messageElements.push(
+        <DateSeparator key={`sep-${msg.id}`} date={msgDate} />
+      )
+      lastDate = msgDate
+    }
+    messageElements.push(
+      <MessageBubble
+        key={msg.id}
+        message={msg}
+        isMine={msg.senderId === userId}
+      />
+    )
+  })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px - 70px)' }}>
@@ -77,13 +134,7 @@ export default function ChatPage() {
             <p>Escríbele a tu entrenador</p>
           </div>
         ) : (
-          messages.map(msg => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isMine={msg.senderId === userId}
-            />
-          ))
+          messageElements
         )}
         {isTyping && (
           <div style={{

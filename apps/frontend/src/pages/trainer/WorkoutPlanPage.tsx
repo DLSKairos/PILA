@@ -3,8 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { workoutService } from '@/services/workout.service'
 import { aiService } from '@/services/ai.service'
 import { clientsService } from '@/services/clients.service'
-import { Card, Button, Badge, Loader, Input } from '@/components/ui'
-import type { WorkoutPlan } from '@/types/workout.types'
+import { Card, Button, Badge, Loader, Input, Modal } from '@/components/ui'
+import type { WorkoutPlan, DayOfWeek, WorkoutDay, WorkoutExercise } from '@/types/workout.types'
 import type { Client } from '@/types/client.types'
 import { PATHS } from '@/router/paths'
 
@@ -14,6 +14,23 @@ interface ExerciseLibraryItem {
   muscleGroup: string
   difficulty: string
   description?: string
+}
+
+interface NewDayState {
+  name: string
+  dayOfWeek: DayOfWeek
+  isRestDay: boolean
+  targetMuscles: string
+}
+
+interface AddExerciseState {
+  exercise: ExerciseLibraryItem
+  dayId: string
+  sets: string
+  reps: string
+  restSeconds: string
+  weightKg: string
+  order: string
 }
 
 export default function WorkoutPlanPage() {
@@ -27,6 +44,18 @@ export default function WorkoutPlanPage() {
   const [libraryFilter, setLibraryFilter] = useState('')
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [showLibrary, setShowLibrary] = useState(false)
+  const [newDayOpen, setNewDayOpen] = useState(false)
+  const [newDayState, setNewDayState] = useState<NewDayState>({
+    name: '',
+    dayOfWeek: 'MONDAY',
+    isRestDay: false,
+    targetMuscles: '',
+  })
+  const [newDaySaving, setNewDaySaving] = useState(false)
+  const [newDayError, setNewDayError] = useState('')
+  const [addExerciseState, setAddExerciseState] = useState<AddExerciseState | null>(null)
+  const [addExerciseSaving, setAddExerciseSaving] = useState(false)
+  const [addExerciseError, setAddExerciseError] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -69,6 +98,90 @@ export default function WorkoutPlanPage() {
       setLibraryItems((res.data as any).data ?? [])
     } catch {} finally {
       setLibraryLoading(false)
+    }
+  }
+
+  const handleCreateDay = async () => {
+    if (!id || !plan || !newDayState.name.trim()) {
+      setNewDayError('El nombre del día es requerido')
+      return
+    }
+    setNewDaySaving(true)
+    setNewDayError('')
+    try {
+      const payload: Record<string, unknown> = {
+        name: newDayState.name.trim(),
+        dayOfWeek: newDayState.dayOfWeek,
+        isRestDay: newDayState.isRestDay,
+      }
+      if (newDayState.targetMuscles.trim()) {
+        payload.targetMuscles = newDayState.targetMuscles.split(',').map(s => s.trim()).filter(Boolean)
+      }
+      const res = await workoutService.addDay(id, plan.id, payload)
+      const newDay = (res.data as any).data as WorkoutDay
+      if (newDay) {
+        setPlan(prev => prev ? { ...prev, days: [...prev.days, { ...newDay, exercises: newDay.exercises ?? [] }] } : prev)
+      }
+      setNewDayOpen(false)
+      setNewDayState({ name: '', dayOfWeek: 'MONDAY', isRestDay: false, targetMuscles: '' })
+    } catch {
+      setNewDayError('Error al crear el día. Intenta de nuevo.')
+    } finally {
+      setNewDaySaving(false)
+    }
+  }
+
+  const handleOpenAddExercise = (exercise: ExerciseLibraryItem) => {
+    if (!plan || plan.days.length === 0) return
+    const firstActiveDay = plan.days.find(d => !d.isRestDay) ?? plan.days[0]
+    setAddExerciseState({
+      exercise,
+      dayId: firstActiveDay.id,
+      sets: '3',
+      reps: '10',
+      restSeconds: '60',
+      weightKg: '',
+      order: '1',
+    })
+    setAddExerciseError('')
+  }
+
+  const handleConfirmAddExercise = async () => {
+    if (!id || !plan || !addExerciseState) return
+    const sets = parseInt(addExerciseState.sets)
+    const restSeconds = parseInt(addExerciseState.restSeconds)
+    if (!sets || sets <= 0 || !addExerciseState.reps.trim()) {
+      setAddExerciseError('Series y repeticiones son requeridas')
+      return
+    }
+    setAddExerciseSaving(true)
+    setAddExerciseError('')
+    try {
+      const payload: Record<string, unknown> = {
+        exerciseId: addExerciseState.exercise.id,
+        sets,
+        reps: addExerciseState.reps.trim(),
+        restSeconds: restSeconds || 60,
+        order: parseInt(addExerciseState.order) || 1,
+      }
+      if (addExerciseState.weightKg) payload.weightKg = parseFloat(addExerciseState.weightKg)
+      const res = await workoutService.addExercise(id, plan.id, addExerciseState.dayId, payload)
+      const newExercise = (res.data as any).data as WorkoutExercise
+      if (newExercise) {
+        setPlan(prev => prev ? {
+          ...prev,
+          days: prev.days.map(d =>
+            d.id === addExerciseState.dayId
+              ? { ...d, exercises: [...d.exercises, newExercise] }
+              : d
+          ),
+        } : prev)
+      }
+      setAddExerciseState(null)
+    } catch {
+      setAddExerciseError('Error al agregar el ejercicio. Intenta de nuevo.')
+    } finally {
+      setAddExerciseSaving(false)
     }
   }
 
@@ -140,6 +253,11 @@ export default function WorkoutPlanPage() {
         {plan && !plan.isApproved && (
           <Button variant="secondary" onClick={handleApprovePlan}>
             ✓ Aprobar
+          </Button>
+        )}
+        {plan && (
+          <Button variant="ghost" onClick={() => { setNewDayOpen(true); setNewDayError('') }} style={{ flexShrink: 0 }}>
+            + Día
           </Button>
         )}
       </div>
@@ -247,10 +365,103 @@ export default function WorkoutPlanPage() {
                           </Badge>
                         </div>
                       </div>
-                      <Button size="sm" variant="ghost" style={{ flexShrink: 0 }}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        style={{ flexShrink: 0 }}
+                        onClick={() => handleOpenAddExercise(ex)}
+                        disabled={!plan || plan.days.length === 0}
+                      >
                         + Agregar
                       </Button>
                     </div>
+                    {/* Mini-formulario inline para este ejercicio */}
+                    {addExerciseState?.exercise.id === ex.id && (
+                      <div style={{
+                        marginTop: 12,
+                        paddingTop: 12,
+                        borderTop: '1px solid var(--border)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <label style={{ fontSize: 12, color: 'var(--txt-sub)', fontWeight: 500 }}>Agregar al día</label>
+                          <select
+                            value={addExerciseState.dayId}
+                            onChange={e => setAddExerciseState(prev => prev ? { ...prev, dayId: e.target.value } : prev)}
+                            style={{
+                              background: 'var(--bg)',
+                              border: '1px solid var(--border)',
+                              borderRadius: 'var(--radius-md)',
+                              color: 'var(--txt)',
+                              fontFamily: '"DM Sans", sans-serif',
+                              fontSize: 13,
+                              padding: '8px 10px',
+                              outline: 'none',
+                              width: '100%',
+                            }}
+                          >
+                            {plan!.days.map(d => (
+                              <option key={d.id} value={d.id}>{d.name}{d.isRestDay ? ' (descanso)' : ''}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                          <Input
+                            label="Series"
+                            type="number"
+                            min="1"
+                            value={addExerciseState.sets}
+                            onChange={e => setAddExerciseState(prev => prev ? { ...prev, sets: e.target.value } : prev)}
+                          />
+                          <Input
+                            label="Reps"
+                            type="text"
+                            placeholder="10 o 8-12"
+                            value={addExerciseState.reps}
+                            onChange={e => setAddExerciseState(prev => prev ? { ...prev, reps: e.target.value } : prev)}
+                          />
+                          <Input
+                            label="Descanso (s)"
+                            type="number"
+                            min="0"
+                            value={addExerciseState.restSeconds}
+                            onChange={e => setAddExerciseState(prev => prev ? { ...prev, restSeconds: e.target.value } : prev)}
+                          />
+                        </div>
+                        <Input
+                          label="Peso (kg, opcional)"
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          placeholder="Sin peso"
+                          value={addExerciseState.weightKg}
+                          onChange={e => setAddExerciseState(prev => prev ? { ...prev, weightKg: e.target.value } : prev)}
+                        />
+                        {addExerciseError && (
+                          <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{addExerciseError}</p>
+                        )}
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Button
+                            size="sm"
+                            onClick={handleConfirmAddExercise}
+                            loading={addExerciseSaving}
+                            disabled={addExerciseSaving}
+                          >
+                            Confirmar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setAddExerciseState(null)}
+                            disabled={addExerciseSaving}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 ))}
                 {filteredLibrary.length === 0 && (

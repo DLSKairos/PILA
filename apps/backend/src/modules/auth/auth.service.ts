@@ -36,7 +36,7 @@ export class AuthService {
 
     const trainer = await this.prisma.trainer.create({
       data: {
-        name: dto.name,
+        name: `${dto.firstName} ${dto.lastName}`,
         email: dto.email,
         passwordHash,
         phone: dto.phone,
@@ -58,7 +58,7 @@ export class AuthService {
 
     await this.email.sendWelcomeTrainer(trainer.email, trainer.name, trainer.preferredLanguage)
 
-    return this.generateTokens(trainer.id, 'TRAINER')
+    return this.generateTokens(trainer.id, 'TRAINER', trainer.email)
   }
 
   async loginTrainer(dto: LoginDto) {
@@ -72,7 +72,7 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Credenciales inválidas')
 
     await this.checkSessionLimit(trainer.id, 'TRAINER')
-    return this.generateTokens(trainer.id, 'TRAINER')
+    return this.generateTokens(trainer.id, 'TRAINER', trainer.email)
   }
 
   async loginClient(dto: LoginDto) {
@@ -86,18 +86,24 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Credenciales inválidas')
 
     await this.checkSessionLimit(client.id, 'CLIENT')
-    return this.generateTokens(client.id, 'CLIENT')
+    return this.generateTokens(client.id, 'CLIENT', client.email)
   }
 
   async refresh(refreshToken: string) {
+    if (!refreshToken) throw new UnauthorizedException('Refresh token inválido o expirado')
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: refreshToken },
     })
     if (!stored || stored.expiresAt < new Date())
       throw new UnauthorizedException('Refresh token inválido o expirado')
 
-    await this.prisma.refreshToken.delete({ where: { token: refreshToken } })
-    return this.generateTokens(stored.userId, stored.userRole)
+    await this.prisma.refreshToken.deleteMany({ where: { token: refreshToken } })
+
+    const email = stored.userRole === 'TRAINER'
+      ? (await this.prisma.trainer.findUnique({ where: { id: stored.userId }, select: { email: true } }))?.email
+      : (await this.prisma.client.findUnique({ where: { id: stored.userId }, select: { email: true } }))?.email
+
+    return this.generateTokens(stored.userId, stored.userRole, email)
   }
 
   async logout(refreshToken: string) {
@@ -161,6 +167,40 @@ export class AuthService {
 
   // ── AJUSTE 1 — Límite de sesiones activas ────────────────────
 
+  async activateClient(token: string, password: string) {
+    const invitation = await this.prisma.clientInvitation.findUnique({
+      where: { token },
+    })
+
+    if (!invitation || invitation.expiresAt < new Date()) {
+      throw new BadRequestException('Token inválido o expirado')
+    }
+
+    const client = await this.prisma.client.findFirst({
+      where: {
+        email: invitation.email,
+        trainerId: invitation.trainerId,
+      },
+    })
+
+    if (!client) {
+      throw new BadRequestException('Token inválido o expirado')
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12)
+
+    await this.prisma.client.update({
+      where: { id: client.id },
+      data: { passwordHash, isActive: true },
+    })
+
+    await this.prisma.clientInvitation.delete({
+      where: { token },
+    })
+
+    return this.generateTokens(client.id, 'CLIENT', client.email)
+  }
+
   private async checkSessionLimit(userId: string, userRole: string) {
     const activeSessions = await this.prisma.refreshToken.findMany({
       where: {
@@ -171,19 +211,11 @@ export class AuthService {
       orderBy: { createdAt: 'asc' },
     })
 
-    if (activeSessions.length >= 3) {
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.CONFLICT,
-          message: 'Límite de sesiones activas alcanzado (máximo 3)',
-          sessions: activeSessions.map((s) => ({
-            id: s.id,
-            createdAt: s.createdAt,
-            expiresAt: s.expiresAt,
-          })),
-        },
-        HttpStatus.CONFLICT,
-      )
+    if (activeSessions.length >= 5) {
+      // Eliminar la sesión más antigua para hacer espacio
+      await this.prisma.refreshToken.delete({
+        where: { id: activeSessions[0].id },
+      })
     }
   }
 
@@ -287,7 +319,7 @@ export class AuthService {
     return { success: true, message: 'Contraseña actualizada' }
   }
 
-  private async generateTokens(userId: string, role: string) {
+  private async generateTokens(userId: string, role: string, email?: string) {
     const payload = { sub: userId, role }
     const accessToken = this.jwt.sign(payload, {
       expiresIn: this.config.get('JWT_EXPIRES_IN') ?? '15m',
@@ -304,6 +336,7 @@ export class AuthService {
       },
     })
 
-    return { accessToken, refreshToken: refreshTokenValue }
+    const user = { id: userId, role, email: email ?? '' }
+    return { accessToken, refreshToken: refreshTokenValue, user }
   }
 }

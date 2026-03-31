@@ -3,12 +3,12 @@ import { create } from 'zustand'
 interface TrainerProfile {
   id: string
   email: string
-  firstName: string
-  lastName: string
+  name: string
   phone?: string
   bio?: string
   photoUrl?: string
   specialties?: string[]
+  preferredLanguage?: string
 }
 
 interface Subscription {

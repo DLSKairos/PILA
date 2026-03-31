@@ -110,3 +110,18 @@ body::before {
 .animate-pulse-dot { animation: pulse 2s ease infinite; }
 .animate-slide-up { animation: slideUp 0.3s ease both; }
 .animate-spin { animation: spin 1s linear infinite; }
+
+/* Trainer layout: padding móvil + sidebar offset en desktop */
+.trainer-main {
+  padding-top: 60px;
+  padding-bottom: 80px;
+}
+
+@media (min-width: 768px) {
+  .trainer-main {
+    margin-left: var(--sidebar-w, 240px);
+    padding-top: 0;
+    padding-bottom: 0;
+    transition: margin-left 0.2s ease;
+  }
+}

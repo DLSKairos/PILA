@@ -49,7 +49,7 @@ export class TrainersService {
       },
     })
 
-    return clients.map((c) => {
+    const mapped = clients.map((c) => {
       const adherence = c.weeklyAdherence[0]?.overallAdherence ?? 0
       const lastLog = c.dailyLogs[0]
       const daysSinceLog = lastLog
@@ -67,6 +67,25 @@ export class TrainersService {
         status,
       }
     })
+
+    const avgAdherence = mapped.length > 0
+      ? Math.round(mapped.reduce((s, c) => s + c.weeklyAdherence, 0) / mapped.length)
+      : 0
+
+    const needsAttention = mapped.filter((c) => c.status === 'red')
+
+    return {
+      clients: mapped,
+      totalClients: mapped.length,
+      avgAdherence,
+      needsAttention: needsAttention.map((c) => ({
+        clientId: c.id,
+        name: c.name,
+        adherence: c.weeklyAdherence,
+        daysMissed: c.daysSinceLog,
+      })),
+      aiCostThisWeek: 0,
+    }
   }
 
   async getDashboardStats(trainerId: string) {

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AIService } from '../ai/ai.service'
 
@@ -65,11 +65,23 @@ export class TrackingService {
     return { source: 'ai', ...aiSub }
   }
 
-  async gymCheckin(clientId: string, gymId: string) {
+  async gymCheckin(clientId: string, gymId: string | undefined) {
+    if (!gymId) {
+      throw new BadRequestException('gymId is required')
+    }
+
+    const gym = await this.prisma.clientGym.findFirst({
+      where: { id: gymId, clientId },
+    })
+
+    if (!gym) {
+      throw new NotFoundException('Gym not found for this client')
+    }
+
     const log = await this.getTodayLog(clientId)
     return this.prisma.dailyLog.update({
       where: { id: log.id },
-      data: { gymCheckinAt: new Date(), gymId },
+      data: { gymCheckinAt: new Date(), gymId: gym.id },
     })
   }
 

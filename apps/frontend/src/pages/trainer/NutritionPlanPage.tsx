@@ -3,8 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { nutritionService } from '@/services/nutrition.service'
 import { aiService } from '@/services/ai.service'
 import { clientsService } from '@/services/clients.service'
-import { Card, Button, Input, Badge, Loader } from '@/components/ui'
-import type { NutritionPlan, MealItem } from '@/types/nutrition.types'
+import { Card, Button, Input, Badge, Loader, Modal } from '@/components/ui'
+import type { NutritionPlan, MealItem, MealType } from '@/types/nutrition.types'
 import type { Client } from '@/types/client.types'
 import { PATHS } from '@/router/paths'
 
@@ -19,6 +19,18 @@ interface FoodResult {
   servingUnit: string
 }
 
+interface AddFoodState {
+  food: FoodResult
+  mealId: string
+  quantity: string
+}
+
+interface NewMealState {
+  name: string
+  mealType: MealType
+  scheduledTime: string
+}
+
 export default function NutritionPlanPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -30,6 +42,13 @@ export default function NutritionPlanPage() {
   const [searchResults, setSearchResults] = useState<FoodResult[]>([])
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
+  const [addFoodState, setAddFoodState] = useState<AddFoodState | null>(null)
+  const [addFoodSaving, setAddFoodSaving] = useState(false)
+  const [addFoodError, setAddFoodError] = useState('')
+  const [newMealOpen, setNewMealOpen] = useState(false)
+  const [newMealState, setNewMealState] = useState<NewMealState>({ name: '', mealType: 'BREAKFAST', scheduledTime: '' })
+  const [newMealSaving, setNewMealSaving] = useState(false)
+  const [newMealError, setNewMealError] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -77,6 +96,71 @@ export default function NutritionPlanPage() {
       setSearching(false)
     }
   }, [searchQuery])
+
+  const handleOpenAddFood = (food: FoodResult) => {
+    if (!plan || plan.meals.length === 0) return
+    setAddFoodState({ food, mealId: plan.meals[0].id, quantity: '100' })
+    setAddFoodError('')
+  }
+
+  const handleConfirmAddFood = async () => {
+    if (!id || !plan || !addFoodState) return
+    const qty = parseFloat(addFoodState.quantity)
+    if (!qty || qty <= 0) {
+      setAddFoodError('Ingresa una cantidad válida')
+      return
+    }
+    setAddFoodSaving(true)
+    setAddFoodError('')
+    try {
+      const res = await nutritionService.addMealItem(id, plan.id, addFoodState.mealId, {
+        foodId: addFoodState.food.id,
+        quantity: qty,
+      })
+      const newItem = (res.data as any).data as MealItem
+      if (newItem) {
+        setPlan(prev => prev ? {
+          ...prev,
+          meals: prev.meals.map(m =>
+            m.id === addFoodState.mealId
+              ? { ...m, items: [...m.items, newItem] }
+              : m
+          ),
+        } : prev)
+      }
+      setAddFoodState(null)
+    } catch {
+      setAddFoodError('Error al agregar el alimento. Intenta de nuevo.')
+    } finally {
+      setAddFoodSaving(false)
+    }
+  }
+
+  const handleCreateMeal = async () => {
+    if (!id || !plan || !newMealState.name.trim()) {
+      setNewMealError('El nombre de la comida es requerido')
+      return
+    }
+    setNewMealSaving(true)
+    setNewMealError('')
+    try {
+      const res = await nutritionService.addMeal(id, plan.id, {
+        name: newMealState.name.trim(),
+        mealType: newMealState.mealType,
+        scheduledTime: newMealState.scheduledTime || undefined,
+      })
+      const newMeal = (res.data as any).data
+      if (newMeal) {
+        setPlan(prev => prev ? { ...prev, meals: [...prev.meals, { ...newMeal, items: [] }] } : prev)
+      }
+      setNewMealOpen(false)
+      setNewMealState({ name: '', mealType: 'BREAKFAST', scheduledTime: '' })
+    } catch {
+      setNewMealError('Error al crear la comida. Intenta de nuevo.')
+    } finally {
+      setNewMealSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -139,6 +223,11 @@ export default function NutritionPlanPage() {
         {plan && !plan.isApproved && (
           <Button variant="secondary" onClick={handleApprovePlan}>
             ✓ Aprobar
+          </Button>
+        )}
+        {plan && (
+          <Button variant="ghost" onClick={() => { setNewMealOpen(true); setNewMealError('') }} style={{ flexShrink: 0 }}>
+            + Comida
           </Button>
         )}
       </div>
@@ -237,10 +326,83 @@ export default function NutritionPlanPage() {
                       {food.servingSize}{food.servingUnit} · {food.calories} kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
                     </p>
                   </div>
-                  <Button size="sm" variant="ghost" style={{ flexShrink: 0 }}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    style={{ flexShrink: 0 }}
+                    onClick={() => handleOpenAddFood(food)}
+                    disabled={!plan || plan.meals.length === 0}
+                  >
                     + Agregar
                   </Button>
                 </div>
+                {/* Mini-formulario inline para este alimento */}
+                {addFoodState?.food.id === food.id && (
+                  <div style={{
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTop: '1px solid var(--border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ fontSize: 12, color: 'var(--txt-sub)', fontWeight: 500 }}>Agregar a la comida</label>
+                      <select
+                        value={addFoodState.mealId}
+                        onChange={e => setAddFoodState(prev => prev ? { ...prev, mealId: e.target.value } : prev)}
+                        style={{
+                          background: 'var(--bg)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius-md)',
+                          color: 'var(--txt)',
+                          fontFamily: '"DM Sans", sans-serif',
+                          fontSize: 13,
+                          padding: '8px 10px',
+                          outline: 'none',
+                          width: '100%',
+                        }}
+                      >
+                        {plan!.meals.map(m => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                      <div style={{ flex: 1 }}>
+                        <Input
+                          label="Cantidad (g)"
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={addFoodState.quantity}
+                          onChange={e => setAddFoodState(prev => prev ? { ...prev, quantity: e.target.value } : prev)}
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleConfirmAddFood}
+                        loading={addFoodSaving}
+                        disabled={addFoodSaving}
+                        style={{ flexShrink: 0, marginBottom: addFoodError ? 0 : 0 }}
+                      >
+                        Confirmar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setAddFoodState(null)}
+                        disabled={addFoodSaving}
+                        style={{ flexShrink: 0 }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                    {addFoodError && (
+                      <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{addFoodError}</p>
+                    )}
+                  </div>
+                )}
               </Card>
             ))}
           </div>
@@ -252,6 +414,60 @@ export default function NutritionPlanPage() {
           </p>
         )}
       </div>
+
+      {/* Modal nueva comida */}
+      <Modal isOpen={newMealOpen} onClose={() => setNewMealOpen(false)} title="Nueva comida" size="sm">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input
+            label="Nombre de la comida"
+            placeholder="Ej: Desayuno, Merienda..."
+            value={newMealState.name}
+            onChange={e => setNewMealState(prev => ({ ...prev, name: e.target.value }))}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Tipo de comida</label>
+            <select
+              value={newMealState.mealType}
+              onChange={e => setNewMealState(prev => ({ ...prev, mealType: e.target.value as MealType }))}
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--txt)',
+                fontFamily: '"DM Sans", sans-serif',
+                fontSize: 15,
+                padding: '10px 12px',
+                outline: 'none',
+                width: '100%',
+              }}
+            >
+              <option value="BREAKFAST">Desayuno</option>
+              <option value="MORNING_SNACK">Merienda mañana</option>
+              <option value="LUNCH">Almuerzo</option>
+              <option value="AFTERNOON_SNACK">Merienda tarde</option>
+              <option value="DINNER">Cena</option>
+              <option value="POST_WORKOUT">Post entreno</option>
+            </select>
+          </div>
+          <Input
+            label="Hora programada (opcional)"
+            type="time"
+            value={newMealState.scheduledTime}
+            onChange={e => setNewMealState(prev => ({ ...prev, scheduledTime: e.target.value }))}
+          />
+          {newMealError && (
+            <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{newMealError}</p>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button fullWidth onClick={handleCreateMeal} loading={newMealSaving} disabled={newMealSaving}>
+              Crear comida
+            </Button>
+            <Button variant="ghost" onClick={() => setNewMealOpen(false)} disabled={newMealSaving}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

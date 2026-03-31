@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, UseGuards } from '@nestjs/common'
+import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common'
 import { ChatService } from './chat.service'
 import { JwtGuard } from '../../common/guards/jwt.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -10,6 +10,44 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator'
 export class ChatController {
   constructor(private chatService: ChatService) {}
 
+  // CLIENT: obtener su historial de mensajes con el entrenador
+  @UseGuards(RolesGuard)
+  @Roles('CLIENT')
+  @Get('me/messages')
+  getMyMessages(
+    @CurrentUser() user: any,
+    @Query('page') page = '1',
+  ) {
+    return this.chatService.getMessagesForClient(user.id, Number(page))
+  }
+
+  // CLIENT: enviar un mensaje al entrenador
+  @UseGuards(RolesGuard)
+  @Roles('CLIENT')
+  @Post('messages')
+  sendMessage(
+    @CurrentUser() user: any,
+    @Body() body: { trainerId: string; content: string; attachmentUrl?: string; attachmentType?: string },
+  ) {
+    return this.chatService.saveMessage({
+      trainerId: body.trainerId,
+      clientId: user.id,
+      content: body.content,
+      senderRole: 'CLIENT',
+      attachmentUrl: body.attachmentUrl,
+      attachmentType: body.attachmentType,
+    })
+  }
+
+  // CLIENT: marcar mensajes del entrenador como leídos
+  @UseGuards(RolesGuard)
+  @Roles('CLIENT')
+  @Patch('me/read')
+  markAsReadClient(@CurrentUser() user: any, @Body() body: { trainerId: string }) {
+    return this.chatService.markAsRead(body.trainerId, user.id, 'CLIENT')
+  }
+
+  // TRAINER: obtener mensajes con un cliente específico
   @UseGuards(RolesGuard)
   @Roles('TRAINER')
   @Get(':clientId/messages')
@@ -21,6 +59,7 @@ export class ChatController {
     return this.chatService.getMessages(user.id, clientId, Number(page))
   }
 
+  // TRAINER: marcar mensajes de un cliente como leídos
   @UseGuards(RolesGuard)
   @Roles('TRAINER')
   @Patch(':clientId/read')
