@@ -56,20 +56,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('send_message')
   async handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { clientId: string; content: string; attachmentUrl?: string; attachmentType?: string },
+    @MessageBody() data: { clientId?: string; trainerId?: string; content: string; attachmentUrl?: string; attachmentType?: string },
   ) {
     const senderId = client.data.userId
     const senderRole = client.data.role as 'TRAINER' | 'CLIENT'
 
-    const trainerId = senderRole === 'TRAINER' ? senderId : undefined
+    const trainerId = senderRole === 'TRAINER' ? senderId : data.trainerId
     const clientId = senderRole === 'CLIENT' ? senderId : data.clientId
 
-    if (!trainerId && senderRole === 'TRAINER') return
+    if (!trainerId) return
     if (!clientId) return
 
     const message = await this.chatService.saveMessage({
-      trainerId: senderRole === 'TRAINER' ? senderId : data.clientId,
-      clientId: senderRole === 'CLIENT' ? senderId : data.clientId,
+      trainerId,
+      clientId,
       content: data.content,
       senderRole,
       attachmentUrl: data.attachmentUrl,
@@ -77,7 +77,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     })
 
     // Enviar al destinatario si está conectado
-    const recipientId = senderRole === 'TRAINER' ? data.clientId : data.clientId
+    const recipientId = senderRole === 'TRAINER' ? clientId : trainerId
     this.server.to(`user:${recipientId}`).emit('new_message', message)
     client.emit('new_message', message)
   }
@@ -85,9 +85,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('typing')
   handleTyping(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { clientId: string; isTyping: boolean },
+    @MessageBody() data: { clientId?: string; trainerId?: string; isTyping: boolean },
   ) {
-    const recipientId = client.data.role === 'TRAINER' ? data.clientId : data.clientId
+    const recipientId = client.data.role === 'TRAINER' ? data.clientId : data.trainerId
     this.server.to(`user:${recipientId}`).emit('typing', {
       userId: client.data.userId,
       isTyping: data.isTyping,

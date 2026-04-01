@@ -14,6 +14,12 @@ export interface Client {
   createdAt: string
   profile?: ClientProfile
   feedbackPending?: number
+  onboardingCompleted?: boolean
+  onboardingGoal?: string
+  onboardingMotivation?: string
+  onboardingActivityLevel?: ActivityLevel
+  onboardingDietaryRestrictions?: string[]
+  onboardingInjuries?: string[]
 }
 
 export interface ClientProfile {

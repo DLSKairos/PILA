@@ -6,6 +6,7 @@ import { workoutService } from '@/services/workout.service'
 import { chatService } from '@/services/chat.service'
 import { aiService } from '@/services/ai.service'
 import { useSocket } from '@/hooks/useSocket'
+import { useChatStore } from '@/stores/chat.store'
 import { Card, Avatar, Button, Badge, ProgressBar, Loader, Input } from '@/components/ui'
 import { MessageBubble } from '@/components/shared/MessageBubble'
 import { PATHS } from '@/router/paths'
@@ -59,6 +60,8 @@ export default function ClientDetailPage() {
   const [chatInput, setChatInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { sendMessage } = useSocket()
+  const storeMessages = useChatStore(s => s.messages)
+  const setActiveClientId = useChatStore(s => s.setActiveClientId)
 
   // Profile form state
   const [profileFormOpen, setProfileFormOpen] = useState(false)
@@ -100,11 +103,30 @@ export default function ClientDetailPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [id])
+    return () => {
+      setActiveClientId(null)
+    }
+  }, [id, setActiveClientId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Sincroniza mensajes nuevos del socket store al estado local cuando el chat está abierto
+  useEffect(() => {
+    if (tab !== 'chat' || storeMessages.length === 0) return
+    const lastStore = storeMessages[storeMessages.length - 1]
+    setMessages(prev => {
+      if (prev.some(m => m.id === lastStore.id)) return prev
+      // Solo agrega mensajes que pertenezcan a esta conversación
+      const isRelevant =
+        (lastStore as any).clientId === id ||
+        (lastStore as any).senderId === id ||
+        (lastStore as any).receiverId === id
+      if (!isRelevant) return prev
+      return [...prev, lastStore]
+    })
+  }, [storeMessages, tab, id])
 
   const handleSaveProfile = async () => {
     if (!id) return
@@ -173,10 +195,17 @@ export default function ClientDetailPage() {
         setWorkoutPlan((res.data as any).data)
       } catch {}
     }
-    if (t === 'chat' && messages.length === 0) {
+    if (t === 'chat') {
+      setActiveClientId(id)
       try {
-        const res = await chatService.getMessages(id)
-        setMessages((res.data as any).data ?? [])
+        const res = await chatService.getMessages(id, { limit: 100 })
+        const raw: Message[] = (res.data as any).data ?? []
+        // Ordena de más antiguo a más nuevo (ASC por createdAt)
+        const sorted = [...raw].sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+        setMessages(sorted)
+        await chatService.markAsRead(id)
       } catch {}
     }
     if (t === 'feedback' && feedback.length === 0) {
@@ -404,7 +433,80 @@ export default function ClientDetailPage() {
               </Card>
             )}
 
-            {!client.profile && (
+            {/* Perfil motivacional del onboarding */}
+            {client.onboardingCompleted && (
+              <Card>
+                <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--txt)' }}>
+                  Perfil motivacional (Onboarding IA)
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+                  {client.onboardingGoal && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Objetivo principal</span>
+                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>{client.onboardingGoal}</p>
+                    </div>
+                  )}
+                  {(client.profile?.goal || client.onboardingGoal) && !client.onboardingGoal && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Objetivo</span>
+                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>{client.profile?.goal}</p>
+                    </div>
+                  )}
+                  {client.onboardingMotivation && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Motivación</span>
+                      <p style={{ color: 'var(--txt)', marginTop: 2, lineHeight: 1.5 }}>{client.onboardingMotivation}</p>
+                    </div>
+                  )}
+                  {(client.onboardingActivityLevel || client.profile?.activityLevel) && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Nivel de actividad</span>
+                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>
+                        {client.onboardingActivityLevel ?? client.profile?.activityLevel}
+                      </p>
+                    </div>
+                  )}
+                  {client.onboardingDietaryRestrictions && client.onboardingDietaryRestrictions.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Restricciones dietéticas</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {client.onboardingDietaryRestrictions.map(r => (
+                          <Badge key={r} variant="neutral">{r}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {client.onboardingInjuries && client.onboardingInjuries.length > 0 && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Lesiones reportadas</span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {client.onboardingInjuries.map(inj => (
+                          <Badge key={inj} variant="warning">{inj}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {!client.onboardingGoal && !client.onboardingMotivation && !client.onboardingActivityLevel && (
+                    <p style={{ color: 'var(--txt-sub)', fontSize: 12, fontStyle: 'italic' }}>
+                      Onboarding completado — datos motivacionales disponibles en el perfil del cliente
+                    </p>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {!client.profile && client.onboardingCompleted && (
+              <Card style={{ textAlign: 'center', padding: 32 }}>
+                <p style={{ fontSize: 24, marginBottom: 8 }}>✅</p>
+                <p style={{ color: 'var(--txt)', fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                  Onboarding completado
+                </p>
+                <p style={{ color: 'var(--txt-sub)', fontSize: 13 }}>
+                  El cliente completó el onboarding con IA. El perfil físico aún está pendiente de datos completos.
+                </p>
+              </Card>
+            )}
+            {!client.profile && !client.onboardingCompleted && (
               <Card style={{ textAlign: 'center', padding: 32 }}>
                 <p style={{ color: 'var(--txt-sub)', fontSize: 14 }}>El cliente aún no ha completado su perfil</p>
               </Card>
@@ -898,7 +1000,11 @@ export default function ClientDetailPage() {
             {!client.profile && (
               <div style={{ textAlign: 'center', padding: 40, color: 'var(--txt-sub)' }}>
                 <p style={{ fontSize: 32, marginBottom: 8 }}>📊</p>
-                <p>El cliente aún no tiene datos de progreso</p>
+                <p>
+                  {client.onboardingCompleted
+                    ? 'Onboarding completado — datos físicos detallados aún pendientes'
+                    : 'El cliente aún no tiene datos de progreso'}
+                </p>
               </div>
             )}
           </div>

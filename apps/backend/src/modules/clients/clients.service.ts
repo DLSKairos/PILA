@@ -115,7 +115,7 @@ export class ClientsService {
 
   async listClients(trainerId: string) {
     return this.prisma.client.findMany({
-      where: { trainerId, isActive: true },
+      where: { trainerId },
       select: {
         id: true, name: true, email: true, phone: true,
         photoUrl: true, onboardingCompleted: true, isActive: true, createdAt: true,

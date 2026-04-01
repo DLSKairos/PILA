@@ -36,7 +36,13 @@ export default function ClientsPage() {
     setLoading(true)
     clientsService.getAll()
       .then(res => {
-        const data: Client[] = (res.data as any).data ?? []
+        const raw: Client[] = (res.data as any).data ?? []
+        // Normaliza: garantiza que isActive sea boolean y name esté populado
+        const data = raw.map(c => ({
+          ...c,
+          isActive: c.isActive === true,
+          name: c.name || `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim(),
+        }))
         setClients(data)
       })
       .catch(console.error)

@@ -49,6 +49,11 @@ export default function NutritionPlanPage() {
   const [newMealState, setNewMealState] = useState<NewMealState>({ name: '', mealType: 'BREAKFAST', scheduledTime: '' })
   const [newMealSaving, setNewMealSaving] = useState(false)
   const [newMealError, setNewMealError] = useState('')
+  const [createPlanOpen, setCreatePlanOpen] = useState(false)
+  const [createPlanName, setCreatePlanName] = useState('')
+  const [createPlanCalories, setCreatePlanCalories] = useState('')
+  const [createPlanSaving, setCreatePlanSaving] = useState(false)
+  const [createPlanError, setCreatePlanError] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -136,6 +141,31 @@ export default function NutritionPlanPage() {
     }
   }
 
+  const handleCreatePlanManual = async () => {
+    if (!id || !createPlanName.trim()) {
+      setCreatePlanError('El nombre del plan es requerido')
+      return
+    }
+    setCreatePlanSaving(true)
+    setCreatePlanError('')
+    try {
+      const payload: Record<string, unknown> = { name: createPlanName.trim() }
+      if (createPlanCalories) payload.targetCalories = parseInt(createPlanCalories)
+      const res = await nutritionService.createPlan(id, payload)
+      const newPlan = (res.data as any).data
+      if (newPlan) {
+        setPlan({ ...newPlan, meals: newPlan.meals ?? [] })
+      }
+      setCreatePlanOpen(false)
+      setCreatePlanName('')
+      setCreatePlanCalories('')
+    } catch {
+      setCreatePlanError('Error al crear el plan. Intenta de nuevo.')
+    } finally {
+      setCreatePlanSaving(false)
+    }
+  }
+
   const handleCreateMeal = async () => {
     if (!id || !plan || !newMealState.name.trim()) {
       setNewMealError('El nombre de la comida es requerido')
@@ -220,6 +250,11 @@ export default function NutritionPlanPage() {
         <Button fullWidth onClick={handleGenerateAI} disabled={aiLoading}>
           ✨ Generar con IA
         </Button>
+        {!plan && (
+          <Button variant="secondary" onClick={() => { setCreatePlanOpen(true); setCreatePlanError('') }} style={{ flexShrink: 0 }}>
+            + Manual
+          </Button>
+        )}
         {plan && !plan.isApproved && (
           <Button variant="secondary" onClick={handleApprovePlan}>
             ✓ Aprobar
@@ -284,7 +319,14 @@ export default function NutritionPlanPage() {
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--txt-sub)' }}>
           <p style={{ fontSize: 40, marginBottom: 12 }}>🥗</p>
           <p style={{ fontSize: 14, marginBottom: 4 }}>No hay plan nutricional activo</p>
-          <p style={{ fontSize: 12 }}>Genera uno con IA para empezar</p>
+          <p style={{ fontSize: 12, marginBottom: 16 }}>Genera uno con IA o créalo manualmente</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { setCreatePlanOpen(true); setCreatePlanError('') }}
+          >
+            + Crear plan manual
+          </Button>
         </div>
       )}
 
@@ -414,6 +456,46 @@ export default function NutritionPlanPage() {
           </p>
         )}
       </div>
+
+      {/* Modal crear plan manual */}
+      <Modal
+        isOpen={createPlanOpen}
+        onClose={() => setCreatePlanOpen(false)}
+        title="Crear plan nutricional"
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input
+            label="Nombre del plan"
+            placeholder="Ej: Plan de volumen semana 1"
+            value={createPlanName}
+            onChange={e => setCreatePlanName(e.target.value)}
+            autoFocus
+          />
+          <Input
+            label="Calorías objetivo (opcional)"
+            type="number"
+            min="0"
+            placeholder="Ej: 2500"
+            value={createPlanCalories}
+            onChange={e => setCreatePlanCalories(e.target.value)}
+          />
+          {createPlanError && (
+            <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{createPlanError}</p>
+          )}
+          <p style={{ fontSize: 12, color: 'var(--txt-sub)', margin: 0 }}>
+            Luego podrás agregar tiempos de comida (desayuno, almuerzo, cena...) y sus alimentos.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button fullWidth onClick={handleCreatePlanManual} loading={createPlanSaving} disabled={createPlanSaving}>
+              Crear plan
+            </Button>
+            <Button variant="ghost" onClick={() => setCreatePlanOpen(false)} disabled={createPlanSaving}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal nueva comida */}
       <Modal isOpen={newMealOpen} onClose={() => setNewMealOpen(false)} title="Nueva comida" size="sm">

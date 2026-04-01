@@ -54,8 +54,31 @@ export class OnboardingService {
 
       await this.prisma.client.update({
         where: { id: clientId },
-        data: { onboardingCompleted: true },
+        data: { onboardingCompleted: true, isActive: true },
       })
+
+      const existingProfile = await this.prisma.clientProfile.findUnique({ where: { clientId } })
+      if (!existingProfile) {
+        try {
+          await this.prisma.clientProfile.create({
+            data: {
+              clientId,
+              birthDate: new Date('2000-01-01'),
+              sex: 'other',
+              currentWeight: 0,
+              height: 0,
+              targetWeight: 0,
+              goal: 'MAINTENANCE',
+              targetWeeks: 12,
+              activityLevel: 'MODERATE',
+              daysPerWeek: 3,
+              sessionDuration: 60,
+            },
+          })
+        } catch {
+          // Si falla la creación del perfil mínimo, no bloqueamos el onboarding
+        }
+      }
     }
 
     return { reply, completed: isLast }

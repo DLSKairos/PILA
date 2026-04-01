@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { trainerService } from '@/services/trainer.service'
+import { clientsService } from '@/services/clients.service'
 import { useTrainerStore } from '@/stores/trainer.store'
 import { Card, Avatar, ProgressBar, Badge, Loader } from '@/components/ui'
 import { StreakCounter } from '@/components/shared/StreakCounter'
@@ -44,16 +45,26 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([trainerService.getDashboard(), trainerService.getLatestReport()])
-      .then(([dashRes, reportRes]) => {
-        const dash = (dashRes.data as any).data as DashboardData
-        const report = (reportRes.data as any).data
+      .then(async ([dashRes, reportRes]) => {
+        const dash = (dashRes.data as any)?.data as DashboardData | undefined
+        const report = (reportRes.data as any)?.data
 
         if (dash) {
-          setClients(dash.clients ?? [])
-          setDashData(dash)
+          // Si el dashboard no trae clients (array vacío o undefined), hacemos fallback a la lista directa
+          let clientList: ClientSummary[] = dash.clients ?? []
+          if (clientList.length === 0) {
+            try {
+              const clientsRes = await clientsService.getAll()
+              clientList = (clientsRes.data as any)?.data ?? []
+            } catch {
+              // fallback silencioso: dejamos array vacío
+            }
+          }
+          setClients(clientList)
+          setDashData({ ...dash, clients: clientList })
           setDashboardStats({
-            totalClients: dash.totalClients ?? dash.clients?.length ?? 0,
-            activeClients: dash.clients?.length ?? 0,
+            totalClients: dash.totalClients ?? clientList.length,
+            activeClients: clientList.length,
             avgAdherence: dash.avgAdherence ?? 0,
             pendingAlerts: dash.needsAttention?.length ?? 0,
             aiCostThisWeek: dash.aiCostThisWeek ?? 0,

@@ -41,17 +41,25 @@ export class TrainersService {
   }
 
   async getDashboard(trainerId: string) {
-    const clients = await this.prisma.client.findMany({
-      where: { trainerId, isActive: true },
-      include: {
-        weeklyAdherence: { orderBy: { weekStart: 'desc' }, take: 1 },
-        dailyLogs: { orderBy: { date: 'desc' }, take: 3 },
-      },
-    })
+    let clients: Awaited<ReturnType<typeof this.prisma.client.findMany>>
+    try {
+      clients = await this.prisma.client.findMany({
+        where: { trainerId },
+        include: {
+          weeklyAdherence: { orderBy: { weekStart: 'desc' }, take: 1 },
+          dailyLogs: { orderBy: { date: 'desc' }, take: 3 },
+        },
+      })
+    } catch {
+      clients = await this.prisma.client.findMany({
+        where: { trainerId },
+        select: { id: true, name: true, photoUrl: true },
+      }) as any[]
+    }
 
     const mapped = clients.map((c) => {
-      const adherence = c.weeklyAdherence[0]?.overallAdherence ?? 0
-      const lastLog = c.dailyLogs[0]
+      const adherence = (c as any).weeklyAdherence?.[0]?.overallAdherence ?? 0
+      const lastLog = (c as any).dailyLogs?.[0]
       const daysSinceLog = lastLog
         ? Math.floor((Date.now() - lastLog.date.getTime()) / 86400000)
         : 99

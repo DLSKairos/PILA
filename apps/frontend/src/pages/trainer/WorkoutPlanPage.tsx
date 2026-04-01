@@ -56,6 +56,10 @@ export default function WorkoutPlanPage() {
   const [addExerciseState, setAddExerciseState] = useState<AddExerciseState | null>(null)
   const [addExerciseSaving, setAddExerciseSaving] = useState(false)
   const [addExerciseError, setAddExerciseError] = useState('')
+  const [createPlanOpen, setCreatePlanOpen] = useState(false)
+  const [createPlanName, setCreatePlanName] = useState('')
+  const [createPlanSaving, setCreatePlanSaving] = useState(false)
+  const [createPlanError, setCreatePlanError] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -98,6 +102,28 @@ export default function WorkoutPlanPage() {
       setLibraryItems((res.data as any).data ?? [])
     } catch {} finally {
       setLibraryLoading(false)
+    }
+  }
+
+  const handleCreatePlanManual = async () => {
+    if (!id || !createPlanName.trim()) {
+      setCreatePlanError('El nombre del plan es requerido')
+      return
+    }
+    setCreatePlanSaving(true)
+    setCreatePlanError('')
+    try {
+      const res = await workoutService.createPlan(id, { name: createPlanName.trim() })
+      const newPlan = (res.data as any).data
+      if (newPlan) {
+        setPlan({ ...newPlan, days: newPlan.days ?? [] })
+      }
+      setCreatePlanOpen(false)
+      setCreatePlanName('')
+    } catch {
+      setCreatePlanError('Error al crear el plan. Intenta de nuevo.')
+    } finally {
+      setCreatePlanSaving(false)
     }
   }
 
@@ -250,6 +276,11 @@ export default function WorkoutPlanPage() {
         <Button fullWidth onClick={handleGenerateAI} disabled={aiLoading}>
           ✨ Generar con IA
         </Button>
+        {!plan && (
+          <Button variant="secondary" onClick={() => { setCreatePlanOpen(true); setCreatePlanError('') }} style={{ flexShrink: 0 }}>
+            + Manual
+          </Button>
+        )}
         {plan && !plan.isApproved && (
           <Button variant="secondary" onClick={handleApprovePlan}>
             ✓ Aprobar
@@ -316,7 +347,14 @@ export default function WorkoutPlanPage() {
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--txt-sub)' }}>
           <p style={{ fontSize: 40, marginBottom: 12 }}>🏋️</p>
           <p style={{ fontSize: 14, marginBottom: 4 }}>No hay rutina activa</p>
-          <p style={{ fontSize: 12 }}>Genera una con IA para empezar</p>
+          <p style={{ fontSize: 12, marginBottom: 16 }}>Genera una con IA o créala manualmente</p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => { setCreatePlanOpen(true); setCreatePlanError('') }}
+          >
+            + Crear rutina manual
+          </Button>
         </div>
       )}
 
@@ -474,6 +512,110 @@ export default function WorkoutPlanPage() {
           </>
         )}
       </div>
+
+      {/* Modal crear plan manual */}
+      <Modal
+        isOpen={createPlanOpen}
+        onClose={() => setCreatePlanOpen(false)}
+        title="Crear rutina de entrenamiento"
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input
+            label="Nombre del plan"
+            placeholder="Ej: Rutina de fuerza 5 días"
+            value={createPlanName}
+            onChange={e => setCreatePlanName(e.target.value)}
+            autoFocus
+          />
+          {createPlanError && (
+            <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{createPlanError}</p>
+          )}
+          <p style={{ fontSize: 12, color: 'var(--txt-sub)', margin: 0 }}>
+            Luego podrás agregar días de entrenamiento (lunes, martes...) y los ejercicios de cada día.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button fullWidth onClick={handleCreatePlanManual} loading={createPlanSaving} disabled={createPlanSaving}>
+              Crear rutina
+            </Button>
+            <Button variant="ghost" onClick={() => setCreatePlanOpen(false)} disabled={createPlanSaving}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal nuevo día */}
+      <Modal
+        isOpen={newDayOpen}
+        onClose={() => setNewDayOpen(false)}
+        title="Agregar día de entrenamiento"
+        size="sm"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Input
+            label="Nombre del día"
+            placeholder="Ej: Día 1 - Pecho y tríceps"
+            value={newDayState.name}
+            onChange={e => setNewDayState(prev => ({ ...prev, name: e.target.value }))}
+            autoFocus
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 13, color: 'var(--txt-sub)', fontWeight: 500 }}>Día de la semana</label>
+            <select
+              value={newDayState.dayOfWeek}
+              onChange={e => setNewDayState(prev => ({ ...prev, dayOfWeek: e.target.value as DayOfWeek }))}
+              style={{
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--txt)',
+                fontFamily: '"DM Sans", sans-serif',
+                fontSize: 15,
+                padding: '10px 12px',
+                outline: 'none',
+                width: '100%',
+              }}
+            >
+              <option value="MONDAY">Lunes</option>
+              <option value="TUESDAY">Martes</option>
+              <option value="WEDNESDAY">Miércoles</option>
+              <option value="THURSDAY">Jueves</option>
+              <option value="FRIDAY">Viernes</option>
+              <option value="SATURDAY">Sábado</option>
+              <option value="SUNDAY">Domingo</option>
+            </select>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, color: 'var(--txt)' }}>
+            <input
+              type="checkbox"
+              checked={newDayState.isRestDay}
+              onChange={e => setNewDayState(prev => ({ ...prev, isRestDay: e.target.checked }))}
+              style={{ width: 16, height: 16, accentColor: 'var(--orange)', cursor: 'pointer' }}
+            />
+            Día de descanso
+          </label>
+          {!newDayState.isRestDay && (
+            <Input
+              label="Músculos objetivo (separados por coma, opcional)"
+              placeholder="Ej: Pecho, Tríceps, Hombros"
+              value={newDayState.targetMuscles}
+              onChange={e => setNewDayState(prev => ({ ...prev, targetMuscles: e.target.value }))}
+            />
+          )}
+          {newDayError && (
+            <p style={{ fontSize: 12, color: 'var(--red)', margin: 0 }}>{newDayError}</p>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button fullWidth onClick={handleCreateDay} loading={newDaySaving} disabled={newDaySaving}>
+              Agregar día
+            </Button>
+            <Button variant="ghost" onClick={() => setNewDayOpen(false)} disabled={newDaySaving}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
