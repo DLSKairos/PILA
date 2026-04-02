@@ -116,18 +116,23 @@ export default function ClientDetailPage() {
   useEffect(() => {
     if (tab !== 'chat' || storeMessages.length === 0) return
     const lastStore = storeMessages[storeMessages.length - 1]
+    const msg = lastStore as any
+    // Verificar que el mensaje pertenece a este cliente
+    const isRelevant = msg.clientId === id || msg.senderId === id || msg.receiverId === id
+    if (!isRelevant) return
     setMessages(prev => {
-      // Descartar si ya existe (evitar duplicados con el optimista o re-renders)
+      // Ya existe con ese id (confirmación del servidor del optimista ya reemplazado)
       if (prev.some(m => m.id === lastStore.id)) return prev
-      // Verificar que el mensaje pertenece a este cliente
-      const msg = lastStore as any
-      const isRelevant = msg.clientId === id || msg.senderId === id || msg.receiverId === id
-      if (!isRelevant) return prev
-      // Reemplazar el optimista del trainer si el servidor confirmó el mismo contenido
-      const withoutOptimistic = prev.filter(m =>
-        !(m.id.startsWith('optimistic-') && m.content === msg.content && m.senderRole === 'TRAINER')
+      // Reemplazar optimista con la confirmación del servidor
+      const optimisticIdx = prev.findIndex(
+        m => m.id.startsWith('optimistic-') && m.content === lastStore.content && m.senderRole === lastStore.senderRole
       )
-      return [...withoutOptimistic, lastStore]
+      if (optimisticIdx !== -1) {
+        const next = [...prev]
+        next[optimisticIdx] = lastStore
+        return next
+      }
+      return [...prev, lastStore]
     })
   }, [storeMessages, tab, id])
 

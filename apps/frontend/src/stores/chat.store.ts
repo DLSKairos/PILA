@@ -26,7 +26,20 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeClientId: null,
 
   addMessage: (message) =>
-    set((s) => ({ messages: [...s.messages, message] })),
+    set((s) => {
+      // Si ya existe un mensaje con el mismo id, no agregar
+      if (s.messages.some(m => m.id === message.id)) return s
+      // Si hay un optimista con el mismo contenido y senderRole, reemplazarlo
+      const optimisticIdx = s.messages.findIndex(
+        m => m.id.startsWith('optimistic-') && m.content === message.content && m.senderRole === message.senderRole
+      )
+      if (optimisticIdx !== -1) {
+        const next = [...s.messages]
+        next[optimisticIdx] = message
+        return { messages: next }
+      }
+      return { messages: [...s.messages, message] }
+    }),
 
   setMessages: (messages) => set({ messages }),
 
