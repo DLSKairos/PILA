@@ -37,12 +37,21 @@ export default function ChatPage() {
   const { sendMessage, sendTyping } = useSocket()
   const bottomRef = useRef<HTMLDivElement>(null)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const trainerIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    chatService.getMessages('me')
-      .then(res => {
-        setMessages((res.data as { data: Message[] }).data ?? [])
+    Promise.all([
+      chatService.getMessages('me'),
+      chatService.getConversations(),
+    ])
+      .then(([messagesRes, conversationsRes]) => {
+        setMessages((messagesRes.data as { data: Message[] }).data ?? [])
         markAllRead()
+        // Extraer trainerId de la conversación activa
+        const conversations = (conversationsRes.data as { data: { trainerId: string }[] }).data ?? []
+        if (conversations.length > 0) {
+          trainerIdRef.current = conversations[0].trainerId
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -68,7 +77,7 @@ export default function ChatPage() {
     }
     addMessage(optimisticMessage)
 
-    sendMessage(content)
+    sendMessage(content, undefined, trainerIdRef.current ?? undefined)
     setInput('')
     sendTyping(false)
   }

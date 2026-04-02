@@ -72,6 +72,26 @@ export class ChatService {
     })
   }
 
+  async getConversationsForClient(clientId: string) {
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: {
+        trainerId: true,
+        trainer: { select: { id: true, name: true } },
+      },
+    })
+    if (!client?.trainerId) return []
+    const unread = await this.prisma.message.count({
+      where: { clientId, senderRole: 'TRAINER', readAt: null },
+    })
+    const lastMessage = await this.prisma.message.findFirst({
+      where: { clientId, trainerId: client.trainerId },
+      orderBy: { createdAt: 'desc' },
+      select: { content: true, createdAt: true },
+    })
+    return [{ trainerId: client.trainerId, trainerName: client.trainer?.name, unread, lastMessage }]
+  }
+
   async getUnreadCount(userId: string, role: 'TRAINER' | 'CLIENT') {
     if (role === 'TRAINER') {
       return this.prisma.message.count({

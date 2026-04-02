@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt'
 import { ConfigService } from '@nestjs/config'
 import { ChatService } from './chat.service'
 import { Logger } from '@nestjs/common'
+import { PrismaService } from '../../prisma/prisma.service'
 
 @WebSocketGateway({
   cors: { origin: '*', credentials: true },
@@ -28,6 +29,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private chatService: ChatService,
     private jwt: JwtService,
     private config: ConfigService,
+    private prisma: PrismaService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -61,11 +63,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const senderId = client.data.userId
     const senderRole = client.data.role as 'TRAINER' | 'CLIENT'
 
-    const trainerId = senderRole === 'TRAINER' ? senderId : data.trainerId
+    let trainerId = senderRole === 'TRAINER' ? senderId : data.trainerId
     const clientId = senderRole === 'CLIENT' ? senderId : data.clientId
 
-    if (!trainerId) return
     if (!clientId) return
+
+    if (senderRole === 'CLIENT' && !trainerId) {
+      const clientRecord = await this.prisma.client.findUnique({
+        where: { id: clientId },
+        select: { trainerId: true },
+      })
+      trainerId = clientRecord?.trainerId
+    }
+
+    if (!trainerId) return
 
     const message = await this.chatService.saveMessage({
       trainerId,

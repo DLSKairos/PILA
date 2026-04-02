@@ -35,8 +35,8 @@ export const useSocket = () => {
     }
   }, [accessToken, addMessage, setTyping, setConnected, incrementUnread])
 
-  const sendMessage = (content: string, clientId?: string, attachmentUrl?: string, attachmentType?: string) => {
-    socketRef.current?.emit('send_message', { content, clientId, attachmentUrl, attachmentType })
+  const sendMessage = (content: string, clientId?: string, trainerId?: string, attachmentUrl?: string, attachmentType?: string) => {
+    socketRef.current?.emit('send_message', { content, clientId, trainerId, attachmentUrl, attachmentType })
   }
 
   const sendTyping = (isTyping: boolean, clientId?: string) => {

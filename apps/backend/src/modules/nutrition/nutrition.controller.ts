@@ -22,6 +22,13 @@ export class NutritionController {
 
   @UseGuards(RolesGuard)
   @Roles('TRAINER')
+  @Post('trainer/clients/:id/nutrition')
+  createPlan(@Param('id') clientId: string, @Body() dto: any) {
+    return this.nutritionService.createPlan(clientId, dto)
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles('TRAINER')
   @Get('trainer/clients/:id/nutrition')
   getActivePlan(@Param('id') clientId: string) {
     return this.nutritionService.getActivePlan(clientId)

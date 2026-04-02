@@ -26,7 +26,25 @@ export default function NutritionPage() {
 
   useEffect(() => {
     nutritionService.getMyPlan()
-      .then(res => setPlan((res.data as { data: NutritionPlan }).data))
+      .then(res => {
+        const raw = (res.data as { data: any }).data
+        if (!raw) return
+        // El backend devuelve meals como MealItem[] plano; los agrupamos por mealType
+        const flatMeals: any[] = raw.meals ?? []
+        const grouped: Record<string, any> = {}
+        flatMeals.forEach((item: any) => {
+          const key = item.mealType ?? 'BREAKFAST'
+          if (!grouped[key]) {
+            grouped[key] = { id: key, planId: raw.id, mealType: key, name: key, items: [] }
+          }
+          grouped[key].items.push(item)
+        })
+        const ORDER = ['BREAKFAST', 'MORNING_SNACK', 'LUNCH', 'AFTERNOON_SNACK', 'DINNER', 'POST_WORKOUT']
+        const meals = Object.values(grouped).sort(
+          (a: any, b: any) => ORDER.indexOf(a.mealType) - ORDER.indexOf(b.mealType)
+        )
+        setPlan({ ...raw, meals })
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])

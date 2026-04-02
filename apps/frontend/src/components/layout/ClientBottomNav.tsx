@@ -6,8 +6,8 @@ const navItems = [
   { path: PATHS.CLIENT.HOME, label: 'Home', icon: '🏠' },
   { path: PATHS.CLIENT.NUTRITION, label: 'Nutrición', icon: '🥗' },
   { path: PATHS.CLIENT.GYM, label: 'Gym', icon: '🏋️' },
-  { path: PATHS.CLIENT.PROGRESS, label: 'Progreso', icon: '📈' },
   { path: PATHS.CLIENT.CHAT, label: 'Chat', icon: '💬' },
+  { path: PATHS.CLIENT.SETTINGS, label: 'Config', icon: '⚙️' },
 ]
 
 export function ClientBottomNav() {

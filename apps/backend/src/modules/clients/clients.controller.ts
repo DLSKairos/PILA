@@ -40,6 +40,7 @@ export class ClientsController {
   }
 
   @Post(':id/profile')
+  @Patch(':id/profile')
   createProfile(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: any) {
     return this.clientsService.createOrUpdateProfile(user.id, id, dto)
   }

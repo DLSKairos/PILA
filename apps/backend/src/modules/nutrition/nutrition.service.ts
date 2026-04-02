@@ -2,12 +2,45 @@ import { Injectable, NotFoundException } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AIService } from '../ai/ai.service'
 
+const MEAL_TYPE_MAP: Record<string, string> = {
+  // Español
+  'Desayuno': 'BREAKFAST',
+  'Media mañana': 'MORNING_SNACK',
+  'Merienda mañana': 'MORNING_SNACK',
+  'Almuerzo': 'LUNCH',
+  'Merienda': 'AFTERNOON_SNACK',
+  'Merienda tarde': 'AFTERNOON_SNACK',
+  'Cena': 'DINNER',
+  // Inglés capitalizado
+  'Breakfast': 'BREAKFAST',
+  'Morning Snack': 'MORNING_SNACK',
+  'Lunch': 'LUNCH',
+  'Afternoon Snack': 'AFTERNOON_SNACK',
+  'Dinner': 'DINNER',
+  'Snack': 'AFTERNOON_SNACK',
+}
+
 @Injectable()
 export class NutritionService {
   constructor(
     private prisma: PrismaService,
     private ai: AIService,
   ) {}
+
+  async createPlan(clientId: string, dto: any) {
+    await this.prisma.nutritionPlan.updateMany({
+      where: { clientId, isActive: true },
+      data: { isActive: false },
+    })
+    return this.prisma.nutritionPlan.create({
+      data: {
+        clientId,
+        notes: dto.name ?? dto.notes ?? null,
+        isActive: true,
+      },
+      include: { meals: true },
+    })
+  }
 
   async getActivePlan(clientId: string) {
     return this.prisma.nutritionPlan.findFirst({
@@ -54,7 +87,20 @@ export class NutritionService {
         generatedByAI: true,
         cacheValid: true,
         lastGeneratedAt: new Date(),
-        meals: { create: aiPlan.meals },
+        meals: {
+          create: aiPlan.meals.map((meal: any, idx: number) => ({
+            mealType: MEAL_TYPE_MAP[meal.mealType] ?? meal.mealType,
+            order: meal.order ?? idx + 1,
+            foodName: meal.foodName,
+            quantity: meal.quantity,
+            unit: meal.unit ?? 'g',
+            calories: meal.calories,
+            protein: meal.protein,
+            carbs: meal.carbs,
+            fat: meal.fat,
+            recipe: meal.recipe ?? null,
+          })),
+        },
       },
       include: { meals: true },
     })

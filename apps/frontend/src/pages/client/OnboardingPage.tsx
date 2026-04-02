@@ -30,11 +30,31 @@ export default function OnboardingPage() {
   })
   const [aiThinking, setAiThinking] = useState(false)
   const [completed, setCompleted] = useState(false)
+  const [statusChecked, setStatusChecked] = useState(false)
   const navigate = useNavigate()
   const bottomRef = useRef<HTMLDivElement>(null)
 
+  // Al montar, el backend es autoritativo: verificar si el onboarding ya está completo
   useEffect(() => {
-    if (messages.length === 0) startOnboarding()
+    aiService.getOnboardingStatus()
+      .then(res => {
+        const data = (res.data as { data?: { completed?: boolean } }).data
+        if (data?.completed) {
+          // La DB dice que está completo: limpiar localStorage y redirigir
+          localStorage.removeItem(storageKey)
+          localStorage.removeItem(`${storageKey}-turn`)
+          navigate(PATHS.CLIENT.HOME, { replace: true })
+        } else {
+          // No completo: iniciar o continuar la conversación
+          setStatusChecked(true)
+          if (messages.length === 0) startOnboarding()
+        }
+      })
+      .catch(() => {
+        // Si falla la verificación, seguir con el estado local
+        setStatusChecked(true)
+        if (messages.length === 0) startOnboarding()
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -105,6 +125,12 @@ export default function OnboardingPage() {
       navigate(PATHS.CLIENT.HOME, { replace: true })
     }
   }
+
+  if (!statusChecked && !completed) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg)' }}>
+      <Loader size="lg" />
+    </div>
+  )
 
   if (completed) return (
     <div style={{

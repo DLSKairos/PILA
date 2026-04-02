@@ -117,14 +117,17 @@ export default function ClientDetailPage() {
     if (tab !== 'chat' || storeMessages.length === 0) return
     const lastStore = storeMessages[storeMessages.length - 1]
     setMessages(prev => {
+      // Descartar si ya existe (evitar duplicados con el optimista o re-renders)
       if (prev.some(m => m.id === lastStore.id)) return prev
-      // Solo agrega mensajes que pertenezcan a esta conversación
-      const isRelevant =
-        (lastStore as any).clientId === id ||
-        (lastStore as any).senderId === id ||
-        (lastStore as any).receiverId === id
+      // Verificar que el mensaje pertenece a este cliente
+      const msg = lastStore as any
+      const isRelevant = msg.clientId === id || msg.senderId === id || msg.receiverId === id
       if (!isRelevant) return prev
-      return [...prev, lastStore]
+      // Reemplazar el optimista del trainer si el servidor confirmó el mismo contenido
+      const withoutOptimistic = prev.filter(m =>
+        !(m.id.startsWith('optimistic-') && m.content === msg.content && m.senderRole === 'TRAINER')
+      )
+      return [...withoutOptimistic, lastStore]
     })
   }, [storeMessages, tab, id])
 
@@ -186,13 +189,15 @@ export default function ClientDetailPage() {
     if (t === 'nutrition' && !nutritionPlan) {
       try {
         const res = await nutritionService.getActivePlan(id)
-        setNutritionPlan((res.data as any).data)
+        const plan = (res.data as any).data
+        if (plan) setNutritionPlan({ ...plan, isApproved: !!plan.approvedAt })
       } catch {}
     }
     if (t === 'workout' && !workoutPlan) {
       try {
         const res = await workoutService.getActivePlan(id)
-        setWorkoutPlan((res.data as any).data)
+        const plan = (res.data as any).data
+        if (plan) setWorkoutPlan({ ...plan, isApproved: !!plan.approvedAt })
       } catch {}
     }
     if (t === 'chat') {
@@ -221,8 +226,11 @@ export default function ClientDetailPage() {
     setAiLoading(true)
     try {
       const res = await aiService.generateNutritionPlan(id)
-      setNutritionPlan((res.data as any).data)
-    } catch {} finally {
+      const plan = (res.data as any).data
+      if (plan) setNutritionPlan({ ...plan, isApproved: !!plan.approvedAt })
+    } catch (err) {
+      console.error('Error generando plan nutricional:', err)
+    } finally {
       setAiLoading(false)
     }
   }
@@ -232,8 +240,11 @@ export default function ClientDetailPage() {
     setAiLoading(true)
     try {
       const res = await aiService.generateWorkoutPlan(id)
-      setWorkoutPlan((res.data as any).data)
-    } catch {} finally {
+      const plan = (res.data as any).data
+      if (plan) setWorkoutPlan({ ...plan, isApproved: !!plan.approvedAt })
+    } catch (err) {
+      console.error('Error generando rutina:', err)
+    } finally {
       setAiLoading(false)
     }
   }
@@ -255,8 +266,20 @@ export default function ClientDetailPage() {
   }
 
   const handleSendChat = () => {
-    if (!chatInput.trim()) return
-    sendMessage(chatInput, id)
+    if (!chatInput.trim() || !id) return
+    const content = chatInput.trim()
+    // Update optimista: el trainer ve su propio mensaje de inmediato
+    const optimistic: Message = {
+      id: `optimistic-${Date.now()}`,
+      conversationId: '',
+      senderId: '',
+      senderRole: 'TRAINER',
+      content,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    }
+    setMessages(prev => [...prev, optimistic])
+    sendMessage(content, id)
     setChatInput('')
   }
 
@@ -830,29 +853,25 @@ export default function ClientDetailPage() {
                         </Button>
                       )}
                     </div>
-                    {nutritionPlan.meals.map(meal => (
+                    {(nutritionPlan.meals ?? []).map(meal => (
                       <Card key={meal.id} style={{ marginBottom: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{meal.name}</h4>
+                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{meal.foodName ?? meal.name}</h4>
                           {meal.scheduledTime && (
                             <span style={{ fontSize: 11, color: 'var(--txt-sub)', fontFamily: '"DM Mono", monospace' }}>
                               {meal.scheduledTime}
                             </span>
                           )}
                         </div>
-                        {meal.items.map(item => (
-                          <div key={item.id} style={{
-                            fontSize: 12,
-                            color: 'var(--txt-sub)',
-                            padding: '5px 0',
-                            borderTop: '1px solid var(--border)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                          }}>
-                            <span>{item.foodName} — {item.quantity}{item.unit}</span>
-                            <span style={{ fontFamily: '"DM Mono", monospace', color: 'var(--txt)' }}>{item.calories} kcal</span>
-                          </div>
-                        ))}
+                        <div style={{
+                          fontSize: 12,
+                          color: 'var(--txt-sub)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                        }}>
+                          <span>{meal.quantity}{meal.unit} · P:{meal.protein}g C:{meal.carbs}g G:{meal.fat}g</span>
+                          <span style={{ fontFamily: '"DM Mono", monospace', color: 'var(--txt)' }}>{meal.calories} kcal</span>
+                        </div>
                       </Card>
                     ))}
                   </div>
@@ -898,13 +917,13 @@ export default function ClientDetailPage() {
                         </Button>
                       )}
                     </div>
-                    {workoutPlan.days.map(day => (
+                    {(workoutPlan.days ?? []).map(day => (
                       <Card key={day.id} style={{ marginBottom: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: day.isRestDay ? 0 : 8 }}>
-                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{day.name}</h4>
+                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{day.name ?? day.dayOfWeek}</h4>
                           {day.isRestDay && <Badge variant="neutral">Descanso</Badge>}
                         </div>
-                        {!day.isRestDay && day.exercises.map(ex => (
+                        {!day.isRestDay && (day.exercises ?? []).map(ex => (
                           <div key={ex.id} style={{
                             fontSize: 12,
                             color: 'var(--txt-sub)',

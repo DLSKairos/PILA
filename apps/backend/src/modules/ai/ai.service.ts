@@ -50,7 +50,8 @@ export class AIService {
     const prompt = `Plan alimentación JSON. Cliente: ${JSON.stringify(clientData)}.
 Genera ${clientData.mealsPerDay} comidas distribuidas en el día.
 Retorna: { meals: [{ mealType, order, foodName, quantity, unit, calories, protein, carbs, fat, recipe }] }
-Las calorías totales deben ser ±5% de ${clientData.targetCalories}kcal.`
+Las calorías totales deben ser ±5% de ${clientData.targetCalories}kcal.
+IMPORTANTE: mealType debe ser EXACTAMENTE uno de estos valores (en mayúsculas, en inglés): BREAKFAST, MORNING_SNACK, LUNCH, AFTERNOON_SNACK, DINNER. No uses otros valores.`
 
     const raw = await this.callAI(prompt)
     return JSON.parse(raw)
@@ -66,7 +67,9 @@ Las calorías totales deben ser ±5% de ${clientData.targetCalories}kcal.`
     injuries: string[]
   }): Promise<any> {
     const prompt = `Plan entrenamiento JSON. Cliente: ${JSON.stringify(clientData)}.
-Retorna: { days: [{ dayOfWeek, isRestDay, exercises: [{ order, name, muscleGroup, sets, reps, restSeconds, weightSuggestion, notes }] }] }`
+Retorna: { days: [{ dayOfWeek, isRestDay, exercises: [{ order, name, muscleGroup, sets, reps, restSeconds, weightSuggestion, notes }] }] }
+IMPORTANTE: dayOfWeek debe ser EXACTAMENTE uno de estos valores (en mayúsculas, en inglés): MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY. No uses otros valores.
+Para días de descanso (isRestDay: true), el array exercises debe ser [] (vacío), no undefined ni null.`
 
     const raw = await this.callAI(prompt)
     return JSON.parse(raw)

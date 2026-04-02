@@ -72,18 +72,22 @@ export class WorkoutService {
             dayOfWeek: day.dayOfWeek,
             isRestDay: day.isRestDay ?? false,
             notes: day.notes,
-            exercises: day.isRestDay ? undefined : {
-              create: (day.exercises ?? []).map((ex: any, idx: number) => ({
-                order: ex.order ?? idx + 1,
-                name: ex.name,
-                muscleGroup: ex.muscleGroup,
-                sets: ex.sets,
-                reps: String(ex.reps),
-                restSeconds: ex.restSeconds,
-                weightSuggestion: ex.weightSuggestion,
-                notes: ex.notes,
-              })),
-            },
+            ...(!day.isRestDay && {
+              exercises: {
+                create: (day.exercises ?? []).map((ex: any, idx: number) => ({
+                  order: ex.order ?? idx + 1,
+                  name: ex.name,
+                  muscleGroup: ex.muscleGroup,
+                  sets: ex.sets,
+                  reps: String(ex.reps),
+                  restSeconds: ex.restSeconds,
+                  weightSuggestion: typeof ex.weightSuggestion === 'number' ? ex.weightSuggestion : null,
+                  notes: typeof ex.weightSuggestion === 'string'
+                    ? `${ex.notes ?? ''}${ex.notes ? ' · ' : ''}Peso sugerido: ${ex.weightSuggestion}`.trim()
+                    : ex.notes,
+                })),
+              },
+            }),
           })),
         },
       },

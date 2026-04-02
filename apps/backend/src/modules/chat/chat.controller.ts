@@ -67,6 +67,13 @@ export class ChatController {
     return this.chatService.markAsRead(user.id, clientId, 'TRAINER')
   }
 
+  @UseGuards(RolesGuard)
+  @Roles('CLIENT')
+  @Get('conversations')
+  getConversations(@CurrentUser() user: any) {
+    return this.chatService.getConversationsForClient(user.id)
+  }
+
   @Get('unread-count')
   getUnreadCount(@CurrentUser() user: any) {
     return this.chatService.getUnreadCount(user.id, user.role)
