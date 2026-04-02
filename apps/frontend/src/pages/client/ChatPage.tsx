@@ -45,7 +45,10 @@ export default function ChatPage() {
     chatService.getMessages('me')
       .then(res => {
         const msgs: Message[] = (res.data as { data: Message[] }).data ?? []
-        setMessages(msgs)
+        const sorted = [...msgs].sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        )
+        setMessages(sorted)
         markAllRead()
       })
       .catch(() => {})
