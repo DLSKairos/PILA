@@ -30,7 +30,13 @@ export const useSocket = () => {
     const socket = socketRef.current
     socket.on('connect', () => setConnected(true))
     socket.on('disconnect', () => setConnected(false))
-    socket.on('new_message', (message: Message) => {
+    socket.on('new_message', (raw: any) => {
+      // El backend devuelve el objeto Prisma con clientId/trainerId pero sin senderId.
+      // Normalizamos para que isMine={msg.senderId === userId} funcione correctamente.
+      const message: Message = {
+        ...raw,
+        senderId: raw.senderId ?? (raw.senderRole === 'TRAINER' ? raw.trainerId : raw.clientId),
+      }
       addMessage(message)
       incrementUnread()
     })

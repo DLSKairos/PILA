@@ -40,21 +40,26 @@ export default function ChatPage() {
   const trainerIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    Promise.all([
-      chatService.getMessages('me'),
-      chatService.getConversations(),
-    ])
-      .then(([messagesRes, conversationsRes]) => {
-        setMessages((messagesRes.data as { data: Message[] }).data ?? [])
+    // Carga mensajes independientemente de getConversations para que un
+    // fallo en conversations no borre el historial del chat.
+    chatService.getMessages('me')
+      .then(res => {
+        const msgs: Message[] = (res.data as { data: Message[] }).data ?? []
+        setMessages(msgs)
         markAllRead()
-        // Extraer trainerId de la conversación activa
-        const conversations = (conversationsRes.data as { data: { trainerId: string }[] }).data ?? []
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+
+    // Extraer trainerId en paralelo, sin bloquear la carga de mensajes
+    chatService.getConversations()
+      .then(res => {
+        const conversations = (res.data as { data: { trainerId: string }[] }).data ?? []
         if (conversations.length > 0) {
           trainerIdRef.current = conversations[0].trainerId
         }
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
   }, [setMessages, markAllRead])
 
   useEffect(() => {
@@ -105,7 +110,7 @@ export default function ChatPage() {
       <MessageBubble
         key={msg.id}
         message={msg}
-        isMine={msg.senderId === userId}
+        isMine={msg.senderRole === 'CLIENT'}
       />
     )
   })
