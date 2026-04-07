@@ -17,9 +17,23 @@ export class TrainersService {
   }
 
   async updateProfile(trainerId: string, dto: any) {
+    // El frontend envía firstName + lastName por separado; combinarlos en name
+    const { firstName, lastName, ...rest } = dto
+    const data: Record<string, unknown> = { ...rest }
+    if (firstName || lastName) {
+      const current = await this.prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: { name: true },
+      })
+      const parts = (current?.name ?? '').split(' ')
+      data.name = `${firstName ?? parts[0] ?? ''} ${lastName ?? parts.slice(1).join(' ') ?? ''}`.trim()
+    }
+    // Eliminar campos que no existen en el modelo
+    delete data.firstName
+    delete data.lastName
     return this.prisma.trainer.update({
       where: { id: trainerId },
-      data: dto,
+      data,
       select: {
         id: true, name: true, email: true, phone: true,
         photoUrl: true, bio: true, specialties: true,

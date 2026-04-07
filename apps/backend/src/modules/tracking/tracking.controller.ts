@@ -49,6 +49,16 @@ export class TrackingController {
     return this.trackingService.completeExercise(user.id, id, data)
   }
 
+  @Delete('meals/:mealItemId/complete')
+  uncompleteMeal(@CurrentUser() user: any, @Param('mealItemId') id: string) {
+    return this.trackingService.uncompleteMeal(user.id, id)
+  }
+
+  @Delete('exercises/:exerciseId/complete')
+  uncompleteExercise(@CurrentUser() user: any, @Param('exerciseId') id: string) {
+    return this.trackingService.uncompleteExercise(user.id, id)
+  }
+
   @Post('water')
   logWater(@CurrentUser() user: any) {
     return this.trackingService.logWater(user.id)
@@ -57,5 +67,15 @@ export class TrackingController {
   @Get('water/today')
   getWater(@CurrentUser() user: any) {
     return this.trackingService.getWaterToday(user.id)
+  }
+
+  @Get('gym/session')
+  getGymSession(@CurrentUser() user: any) {
+    return this.trackingService.getGymSession(user.id)
+  }
+
+  @Get('gym/history')
+  getGymHistory(@CurrentUser() user: any) {
+    return this.trackingService.getGymHistory(user.id)
   }
 }

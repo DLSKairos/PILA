@@ -10,17 +10,38 @@ export class WorkoutService {
   ) {}
 
   async getActivePlan(clientId: string) {
-    return this.prisma.workoutPlan.findFirst({
+    // Primero buscar un plan explícitamente activo
+    const active = await this.prisma.workoutPlan.findFirst({
       where: { clientId, isActive: true },
       include: {
         days: {
           orderBy: { dayOfWeek: 'asc' },
-          include: {
-            exercises: { orderBy: { order: 'asc' } },
-          },
+          include: { exercises: { orderBy: { order: 'asc' } } },
         },
       },
     })
+    if (active) return active
+
+    // Fallback: si existe un plan aprobado (approvedAt != null) pero isActive no se seteó
+    // correctamente (bug anterior), devolverlo y activarlo
+    const approved = await this.prisma.workoutPlan.findFirst({
+      where: { clientId, approvedAt: { not: null } },
+      orderBy: { approvedAt: 'desc' },
+      include: {
+        days: {
+          orderBy: { dayOfWeek: 'asc' },
+          include: { exercises: { orderBy: { order: 'asc' } } },
+        },
+      },
+    })
+    if (approved) {
+      await this.prisma.workoutPlan.update({
+        where: { id: approved.id },
+        data: { isActive: true },
+      })
+      return approved
+    }
+    return null
   }
 
   async getPlanHistory(clientId: string) {
@@ -118,9 +139,19 @@ export class WorkoutService {
   }
 
   async approvePlan(planId: string) {
+    const plan = await this.prisma.workoutPlan.findUnique({
+      where: { id: planId },
+      select: { clientId: true },
+    })
+    if (plan) {
+      await this.prisma.workoutPlan.updateMany({
+        where: { clientId: plan.clientId, isActive: true },
+        data: { isActive: false },
+      })
+    }
     return this.prisma.workoutPlan.update({
       where: { id: planId },
-      data: { approvedAt: new Date() },
+      data: { approvedAt: new Date(), isActive: true },
     })
   }
 
@@ -170,9 +201,13 @@ export class WorkoutService {
     const todayName = days[today.getDay()]
 
     const plan = await this.getActivePlan(clientId)
-    if (!plan) return null
+    if (!plan || plan.days.length === 0) return { exercises: [] }
 
-    return plan.days.find((d) => d.dayOfWeek === todayName) ?? null
+    const todayDay = plan.days.find((d) => d.dayOfWeek === todayName && !d.isRestDay)
+    const day = todayDay ?? plan.days.find((d) => !d.isRestDay) ?? null
+    if (!day) return { exercises: [] }
+
+    return { exercises: day.exercises, dayOfWeek: day.dayOfWeek, dayName: day.notes }
   }
 
   async getExerciseLibrary(muscle?: string, difficulty?: string) {

@@ -31,9 +31,10 @@ export default function TrainerSettingsPage() {
   const [section, setSection] = useState<Section>('profile')
 
   // Perfil
+  const nameParts = profile?.name?.split(' ') ?? []
   const [profileForm, setProfileForm] = useState({
-    firstName: profile?.firstName ?? '',
-    lastName: profile?.lastName ?? '',
+    firstName: nameParts[0] ?? '',
+    lastName: nameParts.slice(1).join(' ') ?? '',
     phone: profile?.phone ?? '',
     bio: profile?.bio ?? '',
   })
@@ -135,10 +136,10 @@ export default function TrainerSettingsPage() {
         <form onSubmit={handleSaveProfile}>
           <Card style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-              <Avatar name={profile ? `${profile.firstName} ${profile.lastName}` : 'E'} size="xl" />
+              <Avatar name={profile?.name ?? 'E'} size="xl" />
               <div>
                 <p style={{ fontWeight: 600, fontSize: 16, color: 'var(--txt)', margin: 0 }}>
-                  {profile?.firstName} {profile?.lastName}
+                  {profile?.name}
                 </p>
                 <p style={{ fontSize: 13, color: 'var(--txt-sub)', margin: '2px 0 0' }}>{profile?.email}</p>
               </div>

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { AIService } from '../ai/ai.service'
 
@@ -66,22 +66,21 @@ export class TrackingService {
   }
 
   async gymCheckin(clientId: string, gymId: string | undefined) {
-    if (!gymId) {
-      throw new BadRequestException('gymId is required')
-    }
+    // gymId es opcional: si se proporciona un id válido se asocia al gym registrado,
+    // si no se envía (o se envía 'manual') se registra el checkin sin gym.
+    let resolvedGymId: string | undefined
 
-    const gym = await this.prisma.clientGym.findFirst({
-      where: { id: gymId, clientId },
-    })
-
-    if (!gym) {
-      throw new NotFoundException('Gym not found for this client')
+    if (gymId && gymId !== 'manual') {
+      const gym = await this.prisma.clientGym.findFirst({
+        where: { id: gymId, clientId },
+      })
+      if (gym) resolvedGymId = gym.id
     }
 
     const log = await this.getTodayLog(clientId)
     return this.prisma.dailyLog.update({
       where: { id: log.id },
-      data: { gymCheckinAt: new Date(), gymId: gym.id },
+      data: { gymCheckinAt: new Date(), ...(resolvedGymId ? { gymId: resolvedGymId } : {}) },
     })
   }
 
@@ -144,6 +143,39 @@ export class TrackingService {
   async logWater(clientId: string) {
     const log = await this.getTodayLog(clientId)
     return this.prisma.waterLog.create({ data: { dailyLogId: log.id } })
+  }
+
+  async uncompleteMeal(clientId: string, mealItemId: string) {
+    const log = await this.getTodayLog(clientId)
+    return this.prisma.mealLog.updateMany({
+      where: { dailyLogId: log.id, mealItemId },
+      data: { completed: false, completedAt: null },
+    })
+  }
+
+  async uncompleteExercise(clientId: string, exerciseId: string) {
+    const log = await this.getTodayLog(clientId)
+    return this.prisma.exerciseLog.deleteMany({
+      where: { dailyLogId: log.id, exerciseId },
+    })
+  }
+
+  async getGymSession(clientId: string) {
+    const log = await this.getTodayLog(clientId)
+    return {
+      checkinAt: log.gymCheckinAt,
+      checkoutAt: log.gymCheckoutAt,
+      gymId: log.gymId,
+      sessionDuration: log.sessionDuration,
+    }
+  }
+
+  async getGymHistory(clientId: string) {
+    return this.prisma.gymSessionSummary.findMany({
+      where: { dailyLog: { clientId } },
+      orderBy: { date: 'desc' },
+      take: 20,
+    })
   }
 
   async getWaterToday(clientId: string) {

@@ -126,7 +126,10 @@ export class ClientsService {
   async getClient(trainerId: string, clientId: string) {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, trainerId },
-      include: { profile: { include: { restrictions: true, injuries: true } } },
+      include: {
+        profile: { include: { restrictions: true, injuries: true } },
+        motivationProfile: true,
+      },
     })
     if (!client) throw new NotFoundException('Cliente no encontrado')
 
@@ -139,7 +142,38 @@ export class ClientsService {
       }),
     ])
 
-    return { ...client, feedbackPending, unreadMessages }
+    // Mapear campos del perfil para que coincidan con los tipos del frontend
+    let mappedProfile: Record<string, unknown> | null = null
+    if (client.profile) {
+      const p = client.profile as any
+      const age = p.birthDate
+        ? Math.floor((Date.now() - new Date(p.birthDate).getTime()) / (365.25 * 24 * 3600 * 1000))
+        : undefined
+      mappedProfile = {
+        ...p,
+        age,
+        proteinGrams: p.targetProtein,
+        carbsGrams: p.targetCarbs,
+        fatGrams: p.targetFat,
+      }
+    }
+
+    // Extraer datos del perfil motivacional del onboarding
+    const mp = client.motivationProfile as any
+    const onboardingData: Record<string, unknown> = {}
+    if (mp) {
+      onboardingData.onboardingMotivation = mp.aiSummary ?? mp.mainObstacle
+      onboardingData.onboardingGoal = client.profile?.goal ?? undefined
+      onboardingData.onboardingActivityLevel = client.profile?.activityLevel ?? undefined
+    }
+
+    return {
+      ...client,
+      profile: mappedProfile,
+      feedbackPending,
+      unreadMessages,
+      ...onboardingData,
+    }
   }
 
   async updateClient(trainerId: string, clientId: string, dto: any) {
@@ -158,45 +192,101 @@ export class ClientsService {
   async createOrUpdateProfile(trainerId: string, clientId: string, dto: any) {
     await this.getClient(trainerId, clientId)
 
-    const birthDate = new Date(dto.birthDate)
-    const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 3600 * 1000))
-    const bmi = dto.weight / Math.pow(dto.height / 100, 2)
+    // Mapa de valores del frontend → enum ActivityLevel del schema
+    const ACTIVITY_MAP: Record<string, string> = {
+      SEDENTARY: 'SEDENTARY',
+      LIGHTLY_ACTIVE: 'LIGHT',
+      LIGHT: 'LIGHT',
+      MODERATELY_ACTIVE: 'MODERATE',
+      MODERATE: 'MODERATE',
+      VERY_ACTIVE: 'ACTIVE',
+      EXTREMELY_ACTIVE: 'ACTIVE',
+      ACTIVE: 'ACTIVE',
+    }
 
-    const tdee = calculateTDEE({
-      weight: dto.currentWeight,
-      height: dto.height,
-      age,
-      sex: dto.sex,
-      activityLevel: dto.activityLevel,
-    })
+    // Normalizar campos: el frontend puede enviar dateOfBirth/birthDate, gender/sex, MALE/male
+    const rawBirthDate = dto.birthDate ?? dto.dateOfBirth
+    const rawSex = (dto.sex ?? dto.gender ?? 'other').toString().toLowerCase()
+    const sex = rawSex === 'male' ? 'male' : rawSex === 'female' ? 'female' : 'male'
+    const currentWeight = dto.currentWeight != null ? parseFloat(dto.currentWeight) : undefined
+    const targetWeight = dto.targetWeight != null ? parseFloat(dto.targetWeight) : undefined
+    const height = dto.height != null ? parseFloat(dto.height) : undefined
 
-    const targetCalories = calculateTargetCalories(tdee, dto.goal)
-    const macros = calculateMacros({ targetCalories, goal: dto.goal, weight: dto.currentWeight })
+    // Obtener perfil existente para rellenar campos que no vengan en el payload
+    const existing = await this.prisma.clientProfile.findUnique({ where: { clientId } })
 
-    const profileData = {
-      ...dto,
+    const effectiveWeight = currentWeight ?? existing?.currentWeight ?? 70
+    const effectiveHeight = height ?? existing?.height ?? 170
+    const rawActivityLevel = dto.activityLevel ?? existing?.activityLevel ?? 'MODERATE'
+    const effectiveActivityLevel = ACTIVITY_MAP[rawActivityLevel] ?? 'MODERATE'
+    const effectiveGoal = dto.goal ?? existing?.goal ?? 'MAINTENANCE'
+
+    let birthDate: Date = existing?.birthDate ?? new Date('2000-01-01')
+    if (rawBirthDate) {
+      const parsed = new Date(rawBirthDate)
+      if (!isNaN(parsed.getTime())) birthDate = parsed
+    }
+
+    const age = Math.max(1, Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 3600 * 1000)))
+    const bmi = effectiveHeight > 0 ? Math.round((effectiveWeight / Math.pow(effectiveHeight / 100, 2)) * 10) / 10 : undefined
+
+    let tdee: number | undefined = existing?.tdee ?? undefined
+    let targetCalories: number | undefined = existing?.targetCalories ?? undefined
+    let macros: { protein: number; carbs: number; fat: number } | undefined
+
+    try {
+      tdee = calculateTDEE({
+        weight: effectiveWeight,
+        height: effectiveHeight,
+        age,
+        sex: sex as 'male' | 'female',
+        activityLevel: effectiveActivityLevel as any,
+      })
+      targetCalories = calculateTargetCalories(tdee, effectiveGoal)
+      macros = calculateMacros({ targetCalories, goal: effectiveGoal, weight: effectiveWeight })
+    } catch {
+      // mantener valores existentes si el cálculo falla
+    }
+
+    const profileData: Record<string, unknown> = {
       birthDate,
-      bmi: Math.round(bmi * 10) / 10,
-      tdee,
-      targetCalories,
-      targetProtein: macros.protein,
-      targetCarbs: macros.carbs,
-      targetFat: macros.fat,
+      sex,
+      currentWeight: effectiveWeight,
+      height: effectiveHeight,
+      targetWeight: targetWeight ?? existing?.targetWeight ?? 0,
+      goal: effectiveGoal,
+      activityLevel: effectiveActivityLevel,
+      ...(bmi !== undefined && { bmi }),
+      ...(tdee !== undefined && !isNaN(tdee) && { tdee }),
+      ...(targetCalories !== undefined && !isNaN(targetCalories) && { targetCalories }),
+      ...(macros && !isNaN(macros.protein) && {
+        targetProtein: macros.protein,
+        targetCarbs: macros.carbs,
+        targetFat: macros.fat,
+      }),
+      targetWeeks: dto.targetWeeks ?? existing?.targetWeeks ?? 12,
+      daysPerWeek: dto.daysPerWeek ?? existing?.daysPerWeek ?? 3,
+      sessionDuration: dto.sessionDuration ?? existing?.sessionDuration ?? 60,
     }
 
     const profile = await this.prisma.clientProfile.upsert({
       where: { clientId },
-      create: { clientId, ...profileData },
+      create: { clientId, ...profileData } as any,
       update: profileData,
     })
 
-    const hash = hashClientProfile(profileData)
     await this.prisma.nutritionPlan.updateMany({
       where: { clientId, isActive: true },
       data: { cacheValid: false },
     })
 
-    return profile
+    return {
+      ...profile,
+      age: Math.floor((Date.now() - profile.birthDate.getTime()) / (365.25 * 24 * 3600 * 1000)),
+      proteinGrams: profile.targetProtein,
+      carbsGrams: profile.targetCarbs,
+      fatGrams: profile.targetFat,
+    }
   }
 
   async addGym(trainerId: string, clientId: string, dto: any) {

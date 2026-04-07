@@ -57,6 +57,23 @@ function DateSeparator({ date }: { date: Date }) {
   )
 }
 
+const GOAL_LABELS: Record<string, string> = {
+  WEIGHT_LOSS: 'Pérdida de peso',
+  MUSCLE_GAIN: 'Ganancia muscular',
+  MAINTENANCE: 'Mantenimiento',
+  ATHLETIC_PERFORMANCE: 'Rendimiento atlético',
+  GENERAL_HEALTH: 'Salud general',
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  SEDENTARY: 'Sedentario',
+  LIGHTLY_ACTIVE: 'Ligeramente activo',
+  MODERATELY_ACTIVE: 'Moderadamente activo',
+  MODERATE: 'Moderado',
+  VERY_ACTIVE: 'Muy activo',
+  EXTREMELY_ACTIVE: 'Extremadamente activo',
+}
+
 const TAB_LIST: { key: Tab; label: string }[] = [
   { key: 'profile', label: '👤 Perfil' },
   { key: 'nutrition', label: '🥗 Nutrición' },
@@ -454,12 +471,14 @@ export default function ClientDetailPage() {
                 <h3 style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--txt)' }}>Métricas físicas</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   {[
-                    ['Peso actual', client.profile.currentWeight ? `${client.profile.currentWeight} kg` : '—'],
-                    ['Peso meta', client.profile.targetWeight ? `${client.profile.targetWeight} kg` : '—'],
-                    ['Talla', client.profile.height ? `${client.profile.height} cm` : '—'],
-                    ['Edad', client.profile.age ? `${client.profile.age} años` : '—'],
-                    ['TDEE', client.profile.tdee ? `${client.profile.tdee} kcal` : '—'],
-                    ['Calorías objetivo', client.profile.targetCalories ? `${client.profile.targetCalories} kcal` : '—'],
+                    ['Peso actual', (client.profile.currentWeight ?? 0) > 0 ? `${client.profile.currentWeight} kg` : '—'],
+                    ['Peso meta', (client.profile.targetWeight ?? 0) > 0 ? `${client.profile.targetWeight} kg` : '—'],
+                    ['Talla', (client.profile.height ?? 0) > 0 ? `${client.profile.height} cm` : '—'],
+                    ['Edad', (client.profile.age ?? 0) > 0 ? `${client.profile.age} años` : '—'],
+                    ['Objetivo', client.profile.goal ? (GOAL_LABELS[client.profile.goal] ?? client.profile.goal) : '—'],
+                    ['Actividad', client.profile.activityLevel ? (ACTIVITY_LABELS[client.profile.activityLevel] ?? client.profile.activityLevel) : '—'],
+                    ['TDEE', (client.profile.tdee ?? 0) > 0 ? `${Math.round(client.profile.tdee!)} kcal` : '—'],
+                    ['Calorías objetivo', (client.profile.targetCalories ?? 0) > 0 ? `${Math.round(client.profile.targetCalories!)} kcal` : '—'],
                   ].map(([label, value]) => (
                     <div key={label}>
                       <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>{label}</span>
@@ -503,30 +522,26 @@ export default function ClientDetailPage() {
                   Perfil motivacional (Onboarding IA)
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
-                  {client.onboardingGoal && (
+                  {(client.onboardingGoal || client.profile?.goal) && (
                     <div>
                       <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Objetivo principal</span>
-                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>{client.onboardingGoal}</p>
-                    </div>
-                  )}
-                  {(client.profile?.goal || client.onboardingGoal) && !client.onboardingGoal && (
-                    <div>
-                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Objetivo</span>
-                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>{client.profile?.goal}</p>
-                    </div>
-                  )}
-                  {client.onboardingMotivation && (
-                    <div>
-                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Motivación</span>
-                      <p style={{ color: 'var(--txt)', marginTop: 2, lineHeight: 1.5 }}>{client.onboardingMotivation}</p>
+                      <p style={{ color: 'var(--txt)', marginTop: 2 }}>
+                        {GOAL_LABELS[client.onboardingGoal ?? client.profile?.goal ?? ''] ?? client.onboardingGoal ?? client.profile?.goal}
+                      </p>
                     </div>
                   )}
                   {(client.onboardingActivityLevel || client.profile?.activityLevel) && (
                     <div>
                       <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Nivel de actividad</span>
                       <p style={{ color: 'var(--txt)', marginTop: 2 }}>
-                        {client.onboardingActivityLevel ?? client.profile?.activityLevel}
+                        {ACTIVITY_LABELS[client.onboardingActivityLevel ?? client.profile?.activityLevel ?? ''] ?? client.onboardingActivityLevel ?? client.profile?.activityLevel}
                       </p>
+                    </div>
+                  )}
+                  {client.onboardingMotivation && (
+                    <div>
+                      <span style={{ fontSize: 11, color: 'var(--txt-sub)' }}>Resumen IA</span>
+                      <p style={{ color: 'var(--txt)', marginTop: 2, lineHeight: 1.5, fontSize: 13 }}>{client.onboardingMotivation}</p>
                     </div>
                   )}
                   {client.onboardingDietaryRestrictions && client.onboardingDietaryRestrictions.length > 0 && (
@@ -549,9 +564,9 @@ export default function ClientDetailPage() {
                       </div>
                     </div>
                   )}
-                  {!client.onboardingGoal && !client.onboardingMotivation && !client.onboardingActivityLevel && (
+                  {!client.onboardingGoal && !client.profile?.goal && !client.onboardingMotivation && !client.onboardingActivityLevel && (
                     <p style={{ color: 'var(--txt-sub)', fontSize: 12, fontStyle: 'italic' }}>
-                      Onboarding completado — datos motivacionales disponibles en el perfil del cliente
+                      No hay datos del onboarding disponibles aún
                     </p>
                   )}
                 </div>
