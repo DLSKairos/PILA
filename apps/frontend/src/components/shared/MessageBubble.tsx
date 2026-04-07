@@ -10,7 +10,7 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isMine, senderName, senderPhoto }: MessageBubbleProps) {
-  const isRead = Boolean(message.readAt)
+  const isRead = message.isRead || Boolean(message.readAt)
 
   return (
     <div style={{

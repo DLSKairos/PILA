@@ -8,7 +8,7 @@ export const useSocket = () => {
   const socketRef = useRef<Socket | null>(null)
   const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const accessToken = useAuthStore(s => s.accessToken)
-  const { addMessage, setTyping, setConnected, incrementUnread } = useChatStore()
+  const { addMessage, setTyping, setConnected, incrementUnread, markMessagesRead } = useChatStore()
 
   useEffect(() => {
     if (!accessToken) return
@@ -41,6 +41,9 @@ export const useSocket = () => {
       incrementUnread()
     })
     socket.on('typing', ({ isTyping }: { isTyping: boolean }) => setTyping(isTyping))
+    socket.on('messages_read', ({ readBy }: { conversationId: string; readBy: 'TRAINER' | 'CLIENT' }) => {
+      markMessagesRead(readBy)
+    })
 
     return () => {
       // Retrasa el disconnect 100 ms para que StrictMode pueda cancelarlo
@@ -52,7 +55,7 @@ export const useSocket = () => {
         disconnectTimerRef.current = null
       }, 100)
     }
-  }, [accessToken, addMessage, setTyping, setConnected, incrementUnread])
+  }, [accessToken, addMessage, setTyping, setConnected, incrementUnread, markMessagesRead])
 
   const sendMessage = (content: string, clientId?: string, trainerId?: string, attachmentUrl?: string, attachmentType?: string) => {
     socketRef.current?.emit('send_message', { content, clientId, trainerId, attachmentUrl, attachmentType })

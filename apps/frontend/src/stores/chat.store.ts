@@ -1,16 +1,23 @@
 import { create } from 'zustand'
 import type { Message } from '@/types/chat.types'
 
+interface LastReadUpdate {
+  readBy: 'TRAINER' | 'CLIENT'
+  timestamp: string
+}
+
 interface ChatStore {
   messages: Message[]
   unreadCount: number
   isConnected: boolean
   isTyping: boolean
   activeClientId: string | null
+  lastReadUpdate: LastReadUpdate | null
 
   addMessage: (message: Message) => void
   setMessages: (messages: Message[]) => void
   markAllRead: () => void
+  markMessagesRead: (readBy: 'TRAINER' | 'CLIENT') => void
   setTyping: (typing: boolean) => void
   setConnected: (connected: boolean) => void
   setActiveClientId: (id: string | null) => void
@@ -24,6 +31,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   isConnected: false,
   isTyping: false,
   activeClientId: null,
+  lastReadUpdate: null,
 
   addMessage: (message) =>
     set((s) => {
@@ -44,6 +52,21 @@ export const useChatStore = create<ChatStore>((set) => ({
   setMessages: (messages) => set({ messages }),
 
   markAllRead: () => set({ unreadCount: 0 }),
+
+  markMessagesRead: (readBy) => {
+    // readBy === 'TRAINER' means the trainer read CLIENT's messages → mark senderRole CLIENT as read
+    // readBy === 'CLIENT' means the client read TRAINER's messages → mark senderRole TRAINER as read
+    const targetRole = readBy === 'TRAINER' ? 'CLIENT' : 'TRAINER'
+    const timestamp = new Date().toISOString()
+    set((s) => ({
+      messages: s.messages.map(m =>
+        m.senderRole === targetRole && !m.readAt
+          ? { ...m, readAt: timestamp, isRead: true }
+          : m
+      ),
+      lastReadUpdate: { readBy, timestamp },
+    }))
+  },
 
   setTyping: (isTyping) => set({ isTyping }),
 

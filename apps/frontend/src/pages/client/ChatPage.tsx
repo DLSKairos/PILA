@@ -54,12 +54,14 @@ export default function ChatPage() {
       .catch(() => {})
       .finally(() => setLoading(false))
 
-    // Extraer trainerId en paralelo, sin bloquear la carga de mensajes
+    // Extraer trainerId en paralelo, sin bloquear la carga de mensajes.
+    // También marca los mensajes del entrenador como leídos desde el cliente.
     chatService.getConversations()
       .then(res => {
         const conversations = (res.data as { data: { trainerId: string }[] }).data ?? []
         if (conversations.length > 0) {
           trainerIdRef.current = conversations[0].trainerId
+          chatService.markAsReadClient(conversations[0].trainerId).catch(() => {})
         }
       })
       .catch(() => {})

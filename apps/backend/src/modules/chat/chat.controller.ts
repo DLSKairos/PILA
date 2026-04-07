@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Param, Query, Body, UseGuards } from '@nestjs/common'
 import { ChatService } from './chat.service'
+import { ChatGateway } from './chat.gateway'
 import { JwtGuard } from '../../common/guards/jwt.guard'
 import { RolesGuard } from '../../common/guards/roles.guard'
 import { Roles } from '../../common/decorators/roles.decorator'
@@ -8,7 +9,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator'
 @UseGuards(JwtGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private chatGateway: ChatGateway,
+  ) {}
 
   // CLIENT: obtener su historial de mensajes con el entrenador
   @UseGuards(RolesGuard)
@@ -43,8 +47,12 @@ export class ChatController {
   @UseGuards(RolesGuard)
   @Roles('CLIENT')
   @Patch('me/read')
-  markAsReadClient(@CurrentUser() user: any, @Body() body: { trainerId: string }) {
-    return this.chatService.markAsRead(body.trainerId, user.id, 'CLIENT')
+  async markAsReadClient(@CurrentUser() user: any, @Body() body: { trainerId: string }) {
+    const result = await this.chatService.markAsRead(body.trainerId, user.id, 'CLIENT')
+    this.chatGateway.server
+      .to(`user:${body.trainerId}`)
+      .emit('messages_read', { conversationId: body.trainerId, readBy: 'CLIENT' })
+    return result
   }
 
   // TRAINER: obtener mensajes con un cliente específico
@@ -63,8 +71,12 @@ export class ChatController {
   @UseGuards(RolesGuard)
   @Roles('TRAINER')
   @Patch(':clientId/read')
-  markAsRead(@CurrentUser() user: any, @Param('clientId') clientId: string) {
-    return this.chatService.markAsRead(user.id, clientId, 'TRAINER')
+  async markAsRead(@CurrentUser() user: any, @Param('clientId') clientId: string) {
+    const result = await this.chatService.markAsRead(user.id, clientId, 'TRAINER')
+    this.chatGateway.server
+      .to(`user:${clientId}`)
+      .emit('messages_read', { conversationId: clientId, readBy: 'TRAINER' })
+    return result
   }
 
   @UseGuards(RolesGuard)

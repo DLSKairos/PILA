@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { format, isToday, isYesterday, isSameDay } from 'date-fns'
+import { es } from 'date-fns/locale'
 import { useNavigate, useParams } from 'react-router-dom'
 import { clientsService } from '@/services/clients.service'
 import { nutritionService } from '@/services/nutrition.service'
@@ -37,6 +39,24 @@ interface FeedbackItem {
   createdAt: string
 }
 
+function getDateLabel(date: Date): string {
+  if (isToday(date)) return 'Hoy'
+  if (isYesterday(date)) return 'Ayer'
+  return format(date, 'd MMM', { locale: es })
+}
+
+function DateSeparator({ date }: { date: Date }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0' }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      <span style={{ fontSize: 11, color: 'var(--txt-sub)', fontFamily: '"DM Sans"' }}>
+        {getDateLabel(date)}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
+  )
+}
+
 const TAB_LIST: { key: Tab; label: string }[] = [
   { key: 'profile', label: '👤 Perfil' },
   { key: 'nutrition', label: '🥗 Nutrición' },
@@ -62,6 +82,7 @@ export default function ClientDetailPage() {
   const { sendMessage } = useSocket()
   const storeMessages = useChatStore(s => s.messages)
   const setActiveClientId = useChatStore(s => s.setActiveClientId)
+  const lastReadUpdate = useChatStore(s => s.lastReadUpdate)
 
   // Profile form state
   const [profileFormOpen, setProfileFormOpen] = useState(false)
@@ -135,6 +156,20 @@ export default function ClientDetailPage() {
       return [...prev, lastStore]
     })
   }, [storeMessages, tab, id])
+
+  // Sincroniza el estado de lectura desde el socket al estado local de mensajes
+  useEffect(() => {
+    if (!lastReadUpdate || tab !== 'chat') return
+    setMessages(prev => prev.map(msg => {
+      const wasReadByOther =
+        (lastReadUpdate.readBy === 'TRAINER' && msg.senderRole === 'CLIENT') ||
+        (lastReadUpdate.readBy === 'CLIENT' && msg.senderRole === 'TRAINER')
+      if (wasReadByOther && !msg.readAt) {
+        return { ...msg, readAt: lastReadUpdate.timestamp, isRead: true }
+      }
+      return msg
+    }))
+  }, [lastReadUpdate, tab])
 
   const handleSaveProfile = async () => {
     if (!id) return
@@ -1089,13 +1124,25 @@ export default function ClientDetailPage() {
                   <p style={{ fontSize: 14 }}>Inicia la conversación con tu cliente</p>
                 </div>
               )}
-              {messages.map(msg => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  isMine={msg.senderRole === 'TRAINER'}
-                />
-              ))}
+              {(() => {
+                const items: React.ReactNode[] = []
+                let lastDate: Date | null = null
+                messages.forEach(msg => {
+                  const msgDate = new Date(msg.createdAt)
+                  if (!lastDate || !isSameDay(lastDate, msgDate)) {
+                    items.push(<DateSeparator key={`sep-${msg.id}`} date={msgDate} />)
+                    lastDate = msgDate
+                  }
+                  items.push(
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      isMine={msg.senderRole === 'TRAINER'}
+                    />
+                  )
+                })
+                return items
+              })()}
               <div ref={messagesEndRef} />
             </div>
             <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--border)' }}>

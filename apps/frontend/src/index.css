@@ -115,6 +115,7 @@ body::before {
 .trainer-main {
   padding-top: 60px;
   padding-bottom: 80px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 768px) {
