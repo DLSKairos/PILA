@@ -11,8 +11,8 @@ RUN npx prisma generate
 
 COPY . .
 
-RUN npm run build && find /app -name "main.js" 2>/dev/null | head -20 && ls -la /app/dist 2>/dev/null || echo "dist no existe"
+RUN npm run build
 
 EXPOSE 3001
 
-CMD ["sh", "-c", "ls -la /app && ls -la /app/dist 2>/dev/null || echo 'dist NO existe' && npx prisma migrate deploy && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
