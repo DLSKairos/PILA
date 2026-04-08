@@ -378,7 +378,7 @@ export default function ClientDetailPage() {
           </h1>
           <p style={{ fontSize: 12, color: 'var(--txt-sub)', margin: '2px 0 0' }}>{client.email}</p>
           {client.profile?.goal && (
-            <Badge variant="orange" style={{ marginTop: 4 }}>{client.profile.goal}</Badge>
+            <span style={{ marginTop: 4, display: 'inline-block' }}><Badge variant="orange">{client.profile.goal}</Badge></span>
           )}
         </div>
         <Badge variant={client.isActive ? 'success' : 'neutral'} dot>
@@ -911,7 +911,7 @@ export default function ClientDetailPage() {
                     {(nutritionPlan.meals ?? []).map(meal => (
                       <Card key={meal.id} style={{ marginBottom: 10 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{meal.foodName ?? meal.name}</h4>
+                          <h4 style={{ fontWeight: 600, fontSize: 13, color: 'var(--txt)' }}>{meal.name}</h4>
                           {meal.scheduledTime && (
                             <span style={{ fontSize: 11, color: 'var(--txt-sub)', fontFamily: '"DM Mono", monospace' }}>
                               {meal.scheduledTime}
