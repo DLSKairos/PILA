@@ -11,4 +11,4 @@ RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma gene
 
 EXPOSE 3001
 
-CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && node dist/main.js"]
