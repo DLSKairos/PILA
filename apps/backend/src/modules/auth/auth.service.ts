@@ -56,7 +56,7 @@ export class AuthService {
       },
     })
 
-    await this.email.sendWelcomeTrainer(trainer.email, trainer.name, trainer.preferredLanguage)
+    this.email.sendWelcomeTrainer(trainer.email, trainer.name, trainer.preferredLanguage).catch(() => {})
 
     return this.generateTokens(trainer.id, 'TRAINER', trainer.email)
   }
@@ -134,7 +134,7 @@ export class AuthService {
     })
 
     const lang = trainer?.preferredLanguage ?? client?.preferredLanguage ?? 'es'
-    await this.email.sendResetPassword(email, token, lang)
+    this.email.sendResetPassword(email, token, lang).catch(() => {})
     return // no exponer el token en producción
   }
 

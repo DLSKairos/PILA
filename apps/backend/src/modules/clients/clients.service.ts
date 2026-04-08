@@ -60,7 +60,7 @@ export class ClientsService {
         select: { name: true, preferredLanguage: true },
       })
 
-      await this.email.sendClientInvitation(
+      this.email.sendClientInvitation(
         dto.email,
         trainer?.name ?? 'Tu entrenador',
         invitationToken,
@@ -103,12 +103,12 @@ export class ClientsService {
       select: { name: true, preferredLanguage: true },
     })
 
-    await this.email.sendClientInvitation(
+    this.email.sendClientInvitation(
       dto.email,
       trainer?.name ?? 'Tu entrenador',
       invitationToken,
       trainer?.preferredLanguage ?? 'es',
-    )
+    ).catch(() => {})
 
     return { client, invitationToken }
   }
