@@ -6,7 +6,7 @@ export const notificationsService = {
     const registration = await navigator.serviceWorker.ready
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey).buffer as ArrayBuffer,
     })
     const json = subscription.toJSON()
     return api.post('/client/notifications/subscribe', {

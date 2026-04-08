@@ -28,7 +28,7 @@ export default function SubscriptionExpiredPage() {
   const [selectedPlan, setSelectedPlan] = useState<'STARTER' | 'PRO' | 'ELITE'>('PRO')
 
   const handleContact = () => {
-    const name = profile ? `${profile.firstName} ${profile.lastName}` : 'un entrenador'
+    const name = profile ? profile.name : 'un entrenador'
     const msg = encodeURIComponent(`Hola, soy ${name}, quiero activar mi plan ${selectedPlan} en PILA`)
     window.open(`https://wa.me/573000000000?text=${msg}`, '_blank')
   }

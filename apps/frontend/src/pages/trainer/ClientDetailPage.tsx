@@ -924,8 +924,8 @@ export default function ClientDetailPage() {
                           display: 'flex',
                           justifyContent: 'space-between',
                         }}>
-                          <span>{meal.quantity}{meal.unit} · P:{meal.protein}g C:{meal.carbs}g G:{meal.fat}g</span>
-                          <span style={{ fontFamily: '"DM Mono", monospace', color: 'var(--txt)' }}>{meal.calories} kcal</span>
+                          <span>P:{meal.items.reduce((s, i) => s + i.protein, 0).toFixed(0)}g C:{meal.items.reduce((s, i) => s + i.carbs, 0).toFixed(0)}g G:{meal.items.reduce((s, i) => s + i.fat, 0).toFixed(0)}g</span>
+                          <span style={{ fontFamily: '"DM Mono", monospace', color: 'var(--txt)' }}>{meal.items.reduce((s, i) => s + i.calories, 0).toFixed(0)} kcal</span>
                         </div>
                       </Card>
                     ))}

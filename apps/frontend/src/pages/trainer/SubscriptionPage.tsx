@@ -25,7 +25,7 @@ export default function SubscriptionPage() {
   const profile = useTrainerStore(s => s.profile)
 
   const handleContactWhatsApp = () => {
-    const name = profile ? `${profile.firstName} ${profile.lastName}` : 'un entrenador'
+    const name = profile ? profile.name : 'un entrenador'
     const plan = subscription?.plan ?? 'PRO'
     const msg = encodeURIComponent(`Hola, soy ${name}, quiero cambiar mi plan a ${plan} en PILA`)
     window.open(`https://wa.me/573000000000?text=${msg}`, '_blank')
