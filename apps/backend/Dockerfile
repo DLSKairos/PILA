@@ -11,8 +11,7 @@ RUN npx prisma generate
 
 COPY . .
 
-RUN npm run build
-RUN ls -la /app/dist/main.js
+RUN npm run build && find /app -name "main.js" 2>/dev/null | head -20 && ls -la /app/dist 2>/dev/null || echo "dist no existe"
 
 EXPOSE 3001
 
