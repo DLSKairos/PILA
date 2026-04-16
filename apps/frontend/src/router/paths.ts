@@ -6,6 +6,7 @@ export const PATHS = {
   RESET_PASSWORD: '/reset-password',
   ACTIVATE: '/activate',
   INSTALL: '/install',
+  GOOGLE_CALLBACK: '/auth/google/callback',
   SUBSCRIPTION_EXPIRED: '/subscription-expired',
 
   TRAINER: {

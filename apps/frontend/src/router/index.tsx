@@ -16,6 +16,7 @@ const RegisterPage = lazy(() => import('@/pages/auth/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/pages/auth/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
 const ActivatePage = lazy(() => import('@/pages/auth/ActivatePage'))
+const GoogleCallbackPage = lazy(() => import('@/pages/auth/GoogleCallbackPage'))
 const InstallPage = lazy(() => import('@/pages/install/InstallPage'))
 
 // Lazy pages - Trainer
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
   { path: PATHS.FORGOT_PASSWORD, element: <SuspenseWrapper><ForgotPasswordPage /></SuspenseWrapper> },
   { path: PATHS.RESET_PASSWORD, element: <SuspenseWrapper><ResetPasswordPage /></SuspenseWrapper> },
   { path: PATHS.ACTIVATE, element: <SuspenseWrapper><ActivatePage /></SuspenseWrapper> },
+  { path: PATHS.GOOGLE_CALLBACK, element: <SuspenseWrapper><GoogleCallbackPage /></SuspenseWrapper> },
   { path: PATHS.INSTALL, element: <SuspenseWrapper><InstallPage /></SuspenseWrapper> },
 
   // Subscription expired (needs auth but not plan)

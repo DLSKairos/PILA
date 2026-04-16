@@ -108,7 +108,8 @@ model Trainer {
   id                String   @id @default(uuid())
   name              String
   email             String   @unique
-  passwordHash      String
+  passwordHash      String?
+  googleId          String?  @unique
   phone             String?
   photoUrl          String?
   bio               String?
@@ -173,7 +174,8 @@ model Client {
   id                  String   @id @default(uuid())
   name                String
   email               String   @unique
-  passwordHash        String
+  passwordHash        String?
+  googleId            String?  @unique
   phone               String?
   photoUrl            String?
   preferredLanguage   String   @default("es")
