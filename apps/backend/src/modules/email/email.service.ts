@@ -1,35 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import * as nodemailer from 'nodemailer'
+import { Resend } from 'resend'
 
 @Injectable()
 export class EmailService {
-  private transporter: nodemailer.Transporter
+  private resend: Resend
+  private readonly from: string
   private readonly logger = new Logger(EmailService.name)
 
   constructor(private config: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      host: config.get('EMAIL_HOST'),
-      port: config.get<number>('EMAIL_PORT'),
-      secure: false,
-      auth: {
-        user: config.get('EMAIL_USER'),
-        pass: config.get('EMAIL_PASS'),
-      },
-    })
+    this.resend = new Resend(config.get('RESEND_API_KEY'))
+    this.from = config.get('EMAIL_FROM') ?? 'PILA <noreply@pila.kairosdls.com>'
   }
 
   private async send(to: string, subject: string, html: string) {
-    try {
-      await this.transporter.sendMail({
-        from: this.config.get('EMAIL_FROM'),
-        to,
-        subject,
-        html,
-      })
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to,
+      subject,
+      html,
+    })
+    if (error) {
+      this.logger.error(`Error enviando email a ${to}: ${JSON.stringify(error)}`)
+    } else {
       this.logger.log(`Email enviado a ${to}: ${subject}`)
-    } catch (error) {
-      this.logger.error(`Error enviando email a ${to}`, error)
     }
   }
 
