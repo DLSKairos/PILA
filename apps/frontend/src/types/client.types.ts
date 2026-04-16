@@ -1,5 +1,5 @@
-export type ClientGoal = 'WEIGHT_LOSS' | 'MUSCLE_GAIN' | 'MAINTENANCE' | 'ATHLETIC_PERFORMANCE' | 'GENERAL_HEALTH'
-export type ActivityLevel = 'SEDENTARY' | 'LIGHTLY_ACTIVE' | 'MODERATELY_ACTIVE' | 'VERY_ACTIVE' | 'EXTREMELY_ACTIVE'
+export type ClientGoal = 'LOSE_WEIGHT' | 'GAIN_MUSCLE' | 'DEFINE' | 'ENDURANCE' | 'MAINTENANCE'
+export type ActivityLevel = 'SEDENTARY' | 'LIGHT' | 'MODERATE' | 'ACTIVE'
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 
 export interface Client {

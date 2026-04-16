@@ -25,12 +25,13 @@ export class NotificationsService {
   // ── Push subscription ─────────────────────────────────────
 
   async subscribe(clientId: string, deviceInfo: any, subscription: any) {
+    const info = deviceInfo ?? {}
     const device = await this.prisma.clientDevice.create({
       data: {
         clientId,
-        deviceType: deviceInfo.deviceType ?? 'mobile',
-        platform: deviceInfo.platform ?? 'web',
-        userAgent: deviceInfo.userAgent,
+        deviceType: info.deviceType ?? 'mobile',
+        platform: info.platform ?? 'web',
+        userAgent: info.userAgent,
       },
     })
 

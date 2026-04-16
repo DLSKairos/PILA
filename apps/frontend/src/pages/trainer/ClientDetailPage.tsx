@@ -58,20 +58,18 @@ function DateSeparator({ date }: { date: Date }) {
 }
 
 const GOAL_LABELS: Record<string, string> = {
-  WEIGHT_LOSS: 'Pérdida de peso',
-  MUSCLE_GAIN: 'Ganancia muscular',
+  LOSE_WEIGHT: 'Pérdida de peso',
+  GAIN_MUSCLE: 'Ganancia muscular',
+  DEFINE: 'Definición',
+  ENDURANCE: 'Resistencia',
   MAINTENANCE: 'Mantenimiento',
-  ATHLETIC_PERFORMANCE: 'Rendimiento atlético',
-  GENERAL_HEALTH: 'Salud general',
 }
 
 const ACTIVITY_LABELS: Record<string, string> = {
   SEDENTARY: 'Sedentario',
-  LIGHTLY_ACTIVE: 'Ligeramente activo',
-  MODERATELY_ACTIVE: 'Moderadamente activo',
-  MODERATE: 'Moderado',
-  VERY_ACTIVE: 'Muy activo',
-  EXTREMELY_ACTIVE: 'Extremadamente activo',
+  LIGHT: 'Ligeramente activo',
+  MODERATE: 'Moderadamente activo',
+  ACTIVE: 'Muy activo',
 }
 
 const TAB_LIST: { key: Tab; label: string }[] = [
@@ -689,10 +687,9 @@ export default function ClientDetailPage() {
                     >
                       <option value="">Seleccionar...</option>
                       <option value="SEDENTARY">Sedentario</option>
-                      <option value="LIGHTLY_ACTIVE">Ligeramente activo</option>
-                      <option value="MODERATELY_ACTIVE">Moderadamente activo</option>
-                      <option value="VERY_ACTIVE">Muy activo</option>
-                      <option value="EXTREMELY_ACTIVE">Extremadamente activo</option>
+                      <option value="LIGHT">Ligeramente activo</option>
+                      <option value="MODERATE">Moderadamente activo</option>
+                      <option value="ACTIVE">Muy activo</option>
                     </select>
                   </div>
 
@@ -715,11 +712,11 @@ export default function ClientDetailPage() {
                       }}
                     >
                       <option value="">Seleccionar...</option>
-                      <option value="WEIGHT_LOSS">Pérdida de peso</option>
-                      <option value="MUSCLE_GAIN">Ganancia muscular</option>
+                      <option value="LOSE_WEIGHT">Pérdida de peso</option>
+                      <option value="GAIN_MUSCLE">Ganancia muscular</option>
+                      <option value="DEFINE">Definición</option>
+                      <option value="ENDURANCE">Resistencia</option>
                       <option value="MAINTENANCE">Mantenimiento</option>
-                      <option value="ATHLETIC_PERFORMANCE">Rendimiento atlético</option>
-                      <option value="GENERAL_HEALTH">Salud general</option>
                     </select>
                   </div>
 
