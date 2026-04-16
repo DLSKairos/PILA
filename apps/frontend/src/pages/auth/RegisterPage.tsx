@@ -72,9 +72,7 @@ export default function RegisterPage() {
     }
   }
 
-  const handleGoogleRegister = () => {
-    window.location.href = `${API_URL}/api/v1/auth/google/trainer`
-  }
+  const googleRegisterUrl = `${API_URL}/api/v1/auth/google/trainer`
 
   return (
     <div style={{
@@ -88,23 +86,21 @@ export default function RegisterPage() {
       </div>
 
       <div style={{ width: '100%', maxWidth: 400 }}>
-        {/* Botón Google */}
-        <button
-          onClick={handleGoogleRegister}
+        {/* Botón Google — usa <a> para que funcione en PWA */}
+        <a
+          href={googleRegisterUrl}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 10, padding: '11px 16px', borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border)', background: 'var(--card)',
             color: 'var(--txt)', cursor: 'pointer', fontSize: 14, fontWeight: 500,
             fontFamily: '"DM Sans", sans-serif', marginBottom: 16,
-            transition: 'background 0.15s',
+            textDecoration: 'none', boxSizing: 'border-box',
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover, var(--border))')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'var(--card)')}
         >
           <GoogleIcon />
           Registrarse con Google
-        </button>
+        </a>
 
         {/* Divisor */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>

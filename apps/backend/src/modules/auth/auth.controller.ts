@@ -3,7 +3,8 @@ import {
   Param, Req, Res, UseGuards, Query,
 } from '@nestjs/common'
 import type { Request, Response } from 'express'
-import * as passport from 'passport'
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const passport = require('passport') as typeof import('passport')
 import { AuthGuard } from '@nestjs/passport'
 import { AuthService } from './auth.service'
 import { RegisterTrainerDto } from './dto/register-trainer.dto'

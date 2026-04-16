@@ -67,10 +67,9 @@ export default function ActivatePage() {
     }
   }
 
-  const handleGoogleActivate = () => {
-    if (!token) return
-    window.location.href = `${API_URL}/api/v1/auth/google/client?invitationToken=${encodeURIComponent(token)}`
-  }
+  const googleActivateUrl = token
+    ? `${API_URL}/api/v1/auth/google/client?invitationToken=${encodeURIComponent(token)}`
+    : '#'
 
   return (
     <div style={{
@@ -87,23 +86,21 @@ export default function ActivatePage() {
           ¡Bienvenido! Activa tu cuenta para empezar
         </p>
 
-        {/* Botón Google */}
-        <button
-          onClick={handleGoogleActivate}
+        {/* Botón Google — usa <a> para que funcione en PWA */}
+        <a
+          href={googleActivateUrl}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             gap: 10, padding: '11px 16px', borderRadius: 'var(--radius-md)',
             border: '1px solid var(--border)', background: 'var(--card)',
             color: 'var(--txt)', cursor: 'pointer', fontSize: 14, fontWeight: 500,
             fontFamily: '"DM Sans", sans-serif', marginBottom: 16,
-            transition: 'background 0.15s',
+            textDecoration: 'none', boxSizing: 'border-box',
           }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-hover, var(--border))')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'var(--card)')}
         >
           <GoogleIcon />
           Activar con Google
-        </button>
+        </a>
 
         {/* Divisor */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
